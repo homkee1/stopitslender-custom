@@ -1,0 +1,6 @@
+# Временные файлы Windows и macOS
+Thumbs.db
+.DS_Store
+
+# Файлы архивов Garry's Mod (если будете компилировать аддон)
+*.gma

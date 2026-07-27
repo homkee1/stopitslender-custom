@@ -1,0 +1,7 @@
+"stopitslender_custom"
+{
+	"base"		"base"
+	"title"		"Stop it Slender Custom"
+	"maps"		"^slender_"
+	"menusystem"	"1"
+}

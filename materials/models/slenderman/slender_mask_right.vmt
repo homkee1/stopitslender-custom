@@ -1,0 +1,24 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/slenderman/face"
+	"$bumpmap" "models/slenderman/skin_bump"
+        "$halflambert" 1
+	"$nocull" "1"
+$phong 1
+$phongboost "1"
+$phongexponent 9
+$phongtint "[0.7 0.8 0.75]"
+$phongfresnelranges "[.3 .5 20]"
+$ambientocclusion 1
+
+$detail detail\plaster_detail_01
+$detailscale 6.783
+$detailblendfactor .8
+$detailblendmode 0
+
+
+$diffuseexp "1.5"
+$lightwarptexture "models/slenderman/lightwarp"
+
+
+}
