@@ -229,9 +229,7 @@ function GM:Think()
 	
 end
 
-function GM:HUDPaint()
-	//empty!
-end
+-- Отрендерено в HUDPaint выше
 
 //local lens = Material("models/props_c17/fisheyelens")//
 local lens = Material( "effects/strider_pinch_dudv" )
@@ -248,7 +246,7 @@ function BlackOut( time )
 end
 
 local nextclick = 0
-function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables	
+function GM:HUDPaint()
 	
 	drawhud = true
 	
@@ -257,37 +255,26 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 	if not IsValid(MySelf) or not MySelf:IsPlayer() then return end
 	
 	local w,h = ScrW(), ScrH()	
-	local gap = w/21.4
+	local gap_x = w * 0.04
+	local gap_y = h * 0.04
 	
-	local ang = EyeAngles()
-	local p, y, r = ang.p, ang.y, ang.r
-	ang:RotateAroundAxis(ang:Up(), -90)
-	ang:RotateAroundAxis(ang:Forward(), 90)
+	local hudColor = Color(200, 235, 255, 75)
+	local hudTextColor = Color(215, 240, 255, 95)
 	
-	local scale = 0.01
-	
-	
-	//hate calculating this shit to fit all resolutions, so hopefully this will work	
-	cam.Start3D(EyePos(),EyeAngles(),GetConVarNumber("fov_desired"), 0, 0,w,h)
-	
-	local forw = ((w+gap*4)*scale)/2
-	
-	cam.Start3D2D(EyePos()-ang:Up()*forw-ang:Right()*(h*scale)/2-ang:Forward()*(w*scale)/2,ang,scale)
-	cam.IgnoreZ(true)
-	
+	draw.NoTexture()
 	
 	if MySelf:Team() ~= TEAM_SLENDER then
 	
-		surface.SetDrawColor(Color(255,255,255,70))
+		surface.SetDrawColor(hudColor)
 		
 		//frame
-		surface.DrawRect(gap*0.8+2, gap, w-2*(gap*0.8), 2)
-		surface.DrawRect(gap*0.8, h-gap, w-2*(gap*0.8), 2)
-		surface.DrawRect(gap*0.8, gap, 2,  h-2*gap)
-		surface.DrawRect(w-gap*0.8, gap+2, 2,  h-2*gap)
+		surface.DrawRect(gap_x+2, gap_y, w-2*gap_x, 2)
+		surface.DrawRect(gap_x, h-gap_y, w-2*gap_x, 2)
+		surface.DrawRect(gap_x, gap_y, 2,  h-2*gap_y)
+		surface.DrawRect(w-gap_x, gap_y+2, 2,  h-2*gap_y)
 		
 		//battery
-		local batX,batY = gap*1.3, gap*1.3
+		local batX,batY = gap_x*1.5, gap_y*1.3
 		local batW,batH = 110, 45
 		
 		local target = IsValid(MySelf:GetObserverTarget()) and MySelf:GetObserverTarget():IsPlayer() and MySelf:GetObserverTarget() or MySelf
@@ -296,6 +283,8 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 		
 		if am <= 0.3 then
 			surface.SetDrawColor(Color(255,35,35,70))
+		else
+			surface.SetDrawColor(hudColor)
 		end
 		
 		surface.DrawRect(batX+3,batY+3,(batW-6)*am,batH-6)
@@ -317,20 +306,20 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 		local green = MySelf:Alive() and 15 or 215
 		
 		local time = string.FormattedTime(CurTime() - starttime, "%02i:%02i:%02i")
-		draw.SimpleText(txt, "Tahoma_lines50",w-gap*1.3+((MySelf:Alive() and 0) or 4), gap*1.2, Color(red,green,15,100*math.Round(math.Clamp(math.sin(RealTime()*3.5)*2,0,1))), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
-		draw.SimpleText(time, "Tahoma_lines18",w-gap*1.3, gap*1.2+45, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
+		draw.SimpleText(txt, "Tahoma_lines50",w-gap_x*1.5+((MySelf:Alive() and 0) or 4), gap_y*1.2, Color(red,green,15,100*math.Round(math.Clamp(math.sin(RealTime()*3.5)*2,0,1))), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
+		draw.SimpleText(time, "Tahoma_lines18",w-gap_x*1.5, gap_y*1.2+45, hudTextColor, TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
 		
 	end
 	//spectator thingy
 	if IsValid(MySelf:GetObserverTarget()) then
 	
 		local name = MySelf:GetObserverTarget().Nick and MySelf:GetObserverTarget():Nick() or MySelf:GetObserverTarget().PrintName or "NONE"
-		draw.SimpleText("Spectating "..name, "Tahoma_lines18",w-gap*1.3, h-gap*1.3-23, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
+		draw.SimpleText("Spectating "..name, "Tahoma_lines18",w-gap_x*1.5, h-gap_y*1.3-23, hudTextColor, TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
 		
 		local obs = MySelf:GetObserverTarget()
 		local pages = (IsValid(obs) and obs:IsPlayer() and obs.GetPages) and obs:GetPages() or 0
 		local maxPages = (IsValid(MySelf) and MySelf.GetMaxPages) and MySelf:GetMaxPages() or 8
-		draw.SimpleText("Pages "..pages.."/"..maxPages, "Tahoma_lines18",w-gap*1.3, h-gap*1.3, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
+		draw.SimpleText("Pages "..pages.."/"..maxPages, "Tahoma_lines18",w-gap_x*1.5, h-gap_y*1.3, hudTextColor, TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
 		
 	else
 		if MySelf:Team() == TEAM_SPECTATOR then
@@ -350,7 +339,7 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 		if MySelf:Team() ~= TEAM_SLENDER then
 			local pages = (IsValid(MySelf) and MySelf.GetPages) and MySelf:GetPages() or 0
 			local maxPages = (IsValid(MySelf) and MySelf.GetMaxPages) and MySelf:GetMaxPages() or 8
-			draw.SimpleText("Pages "..pages.."/"..maxPages, "Tahoma_lines18",w-gap*1.3, h-gap*1.3, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
+			draw.SimpleText("Pages "..pages.."/"..maxPages, "Tahoma_lines18",w-gap_x*1.5, h-gap_y*1.3, hudTextColor, TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
 		end
 	end
 
@@ -369,9 +358,9 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 		if StaminaBarAlpha > 0 then
 			local barW, barH = 200, 20
 			local barX = w / 2 - barW / 2
-			local barY = h - gap * 1.5
+			local barY = h - gap_y * 1.5
 
-			local mainColor = isExhausted and Color(215, 15, 15, StaminaBarAlpha) or Color(255, 255, 255, StaminaBarAlpha)
+			local mainColor = isExhausted and Color(215, 15, 15, StaminaBarAlpha) or Color(200, 235, 255, StaminaBarAlpha)
 
 			-- Draw fill
 			surface.SetDrawColor(mainColor)
@@ -396,10 +385,11 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 	local wep = IsValid(MySelf:GetActiveWeapon()) and MySelf:GetActiveWeapon():GetClass() == "camera" and MySelf:GetActiveWeapon()
 		
 	if wep and wep.Zoom then
-		surface.SetDrawColor(Color(255,255,255,70))
+		surface.SetDrawColor(hudColor)
 		
 		local zoomW,zoomH = 300, 20
-		local zoomX,zoomY = w/2-zoomW/2,gap*1.3
+		local zoomX,zoomY = w/2-zoomW/2,gap_y*1.3
+		
 		local zoom_barW = (zoomW-6)/10
 		
 		surface.DrawOutlinedRect(zoomX,zoomY,zoomW,zoomH)
@@ -426,18 +416,18 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 	end
 	
 	if scoreboard_alpha > 0 then
-	
-		local sW,sH = w/4.6, h/2
-		local sX,sY = w-gap*1.3-sW, h/2-sH/2
 		
-		surface.SetDrawColor(Color(255,255,255,math.Clamp(scoreboard_alpha,0,70)))
+		local sW,sH = w/4.6, h/2
+		local sX,sY = w-gap_x*1.5-sW, h/2-sH/2
+		
+		surface.SetDrawColor(Color(200, 235, 255, math.Clamp(scoreboard_alpha,0,70)))
 		
 		surface.DrawOutlinedRect(sX,sY,sW,sH)
 		surface.DrawOutlinedRect(sX-1,sY-1,sW+2,sH+2)
 		
 		
-		draw.SimpleText(math.random(40) == 1 and "NO DATA" or "Stop it, Slender! by NECROSSIN", "Tahoma_lines23",sX+sW-6,sY+4-23*2-8, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
-		draw.SimpleText(math.random(40) == 1 and "NO DATA" or "version "..(self.Version or "error"), "Tahoma_lines23",sX+sW-6,sY+4-23-6, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
+		draw.SimpleText(math.random(40) == 1 and "NO DATA" or "Stop it, Slender! by NECROSSIN", "Tahoma_lines23",sX+sW-6,sY+4-23*2-8, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
+		draw.SimpleText(math.random(40) == 1 and "NO DATA" or "version "..(self.Version or "error"), "Tahoma_lines23",sX+sW-6,sY+4-23-6, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
 		
 		local offsetY = 0
 		
@@ -454,10 +444,8 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 			draw.SimpleText(muted and "MUTED" or "", "Tahoma_lines23",sX+sW-6-45,sY+4+offsetY, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
 			
 			local mx,my = gui.MousePos()
-
-			local origin = (EyePos()-ang:Up()*forw-ang:Right()*(h*scale)/2-ang:Forward()*(w*scale)/2):ToScreen()
 		
-			if mx > origin.x+sX and mx < origin.x+sX+sW and my > origin.y+sY+offsetY and my < origin.y+sY+offsetY+25 then
+			if mx > sX and mx < sX+sW and my > sY+offsetY and my < sY+offsetY+25 then
 			
 				if input.IsMouseDown( MOUSE_LEFT ) and nextclick <= CurTime() and slender:IsPlayer() then
 					slender:SetMuted( !muted )
@@ -481,46 +469,44 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 			local name = pl:Nick()
 			local ping = pl:Ping() or ""
 			
-			draw.SimpleText(!pl:Alive() and math.random(30) == 1 and "NO DATA" or name, "Tahoma_lines23",sX+6,sY+4+offsetY, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
-			draw.SimpleText(ping, "Tahoma_lines23",sX+sW-6,sY+4+offsetY, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
-			draw.SimpleText(pl:IsMuted() and "MUTED" or "", "Tahoma_lines23",sX+sW-6-45,sY+4+offsetY, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
+			draw.SimpleText(!pl:Alive() and math.random(30) == 1 and "NO DATA" or name, "Tahoma_lines23",sX+6,sY+4+offsetY, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
+			draw.SimpleText(ping, "Tahoma_lines23",sX+sW-6,sY+4+offsetY, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
+			draw.SimpleText(pl:IsMuted() and "MUTED" or "", "Tahoma_lines23",sX+sW-6-45,sY+4+offsetY, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
 
 			local mx,my = gui.MousePos()
-			local origin = (EyePos()-ang:Up()*forw-ang:Right()*(h*scale)/2-ang:Forward()*(w*scale)/2):ToScreen()
 		
-			if mx > origin.x+sX and mx < origin.x+sX+sW and my > origin.y+sY+offsetY and my < origin.y+sY+offsetY+25 then
+			if mx > sX and mx < sX+sW and my > sY+offsetY and my < sY+offsetY+25 then
 			
 				if input.IsMouseDown( MOUSE_LEFT ) and nextclick <= CurTime() then
 					pl:SetMuted( !pl:IsMuted() )
 					nextclick = CurTime() + 1
 				end
-				draw.SimpleText(!pl:Alive() and math.random(30) == 1 and "NO DATA" or name, "Tahoma_lines23",sX+6,sY+4+offsetY, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
-				draw.SimpleText(ping, "Tahoma_lines23",sX+sW-6,sY+4+offsetY, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
-				draw.SimpleText(pl:IsMuted() and "MUTED" or "", "Tahoma_lines23",sX+sW-6-45,sY+4+offsetY, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
+				draw.SimpleText(!pl:Alive() and math.random(30) == 1 and "NO DATA" or name, "Tahoma_lines23",sX+6,sY+4+offsetY, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
+				draw.SimpleText(ping, "Tahoma_lines23",sX+sW-6,sY+4+offsetY, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
+				draw.SimpleText(pl:IsMuted() and "MUTED" or "", "Tahoma_lines23",sX+sW-6-45,sY+4+offsetY, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
 		
 			end
 	
 			offsetY = offsetY + 23 + 2
 		end
 		
-		draw.SimpleText("Click on squeaky player to mute!", "Tahoma_lines23",sX+4,sY+sH-4, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_LEFT,TEXT_ALIGN_BOTTOM)
+		draw.SimpleText("Click on squeaky player to mute!", "Tahoma_lines23",sX+4,sY+sH-4, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_LEFT,TEXT_ALIGN_BOTTOM)
 		
 		local mx,my = gui.MousePos()
-		local origin = (EyePos()-ang:Up()*forw-ang:Right()*(h*scale)/2-ang:Forward()*(w*scale)/2):ToScreen()
 		
-		draw.SimpleText("X", "Tahoma_lines23",mx+origin.x,my+origin.y, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
+		draw.SimpleText("X", "Tahoma_lines23",mx,my, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
 		
-		draw.SimpleText("Hold [RIGHT MOUSE BUTTON] to enable mouse cursor", "Tahoma_lines23",w/2,h-gap*1.3, Color(255,255,255,scoreboard_alpha), TEXT_ALIGN_CENTER,TEXT_ALIGN_BOTTOM)
+		draw.SimpleText("Hold [RIGHT MOUSE BUTTON] to enable mouse cursor", "Tahoma_lines23",w/2,h-gap_y*1.3, Color(215, 240, 255, scoreboard_alpha), TEXT_ALIGN_CENTER,TEXT_ALIGN_BOTTOM)
 	end
 	
 	if VotingTime and VotingTime > CurTime() then
 	
 		local mW,mH = w/7, h/3
-		local mX,mY = gap*1.3, h/2-mH/2-25
+		local mX,mY = gap_x*1.5, h/2-mH/2-25
 		
 		local offsetY = 0
 			
-		surface.SetDrawColor(Color(255,255,255,70))
+		surface.SetDrawColor(hudColor)
 		
 		draw.SimpleText("Vote for the next map!", "Tahoma_lines23",mX+6,mY+4, Color(215,15,15,70), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
 		
@@ -534,8 +520,8 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 			
 			if tbl then
 			
-				draw.SimpleText(num..".", "Tahoma_lines23",mX+6,mY+4+offsetY, Color(255,255,255,70), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
-				draw.SimpleText((tbl.map or "error!").."  ("..(tbl.votes or 0)..")", "Tahoma_lines23",mX+6+30,mY+4+offsetY, Color(255,255,255,70), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
+				draw.SimpleText(num..".", "Tahoma_lines23",mX+6,mY+4+offsetY, hudTextColor, TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
+				draw.SimpleText((tbl.map or "error!").."  ("..(tbl.votes or 0)..")", "Tahoma_lines23",mX+6+30,mY+4+offsetY, hudTextColor, TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
 				
 				offsetY = offsetY + 23 + 2
 				
@@ -548,14 +534,14 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 			offsetY = offsetY + 23*2 + 2
 			
 			if vote_cur_page > 1 then
-				draw.SimpleText("9.", "Tahoma_lines23",mX+6,mY+4+offsetY, Color(255,255,255,70), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
-				draw.SimpleText("Previous page", "Tahoma_lines23",mX+6+30,mY+4+offsetY, Color(255,255,255,70), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
+				draw.SimpleText("9.", "Tahoma_lines23",mX+6,mY+4+offsetY, hudTextColor, TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
+				draw.SimpleText("Previous page", "Tahoma_lines23",mX+6+30,mY+4+offsetY, hudTextColor, TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
 				offsetY = offsetY + 23 + 2
 			end
 			
 			if vote_cur_page < voting_get_max_pages() then
-				draw.SimpleText("0.", "Tahoma_lines23",mX+6,mY+4+offsetY, Color(255,255,255,70), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
-				draw.SimpleText("Next page", "Tahoma_lines23",mX+6+30,mY+4+offsetY, Color(255,255,255,70), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
+				draw.SimpleText("0.", "Tahoma_lines23",mX+6,mY+4+offsetY, hudTextColor, TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
+				draw.SimpleText("Next page", "Tahoma_lines23",mX+6+30,mY+4+offsetY, hudTextColor, TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
 			end
 			
 		end
@@ -576,18 +562,7 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 		draw.SimpleText("The tape ends there", "Tahoma_lines80",w/2, h/2, Color(255,255,255,100), TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
 	end
 	
-	
-	
-	cam.IgnoreZ(false)
-	cam.End3D2D()
-	
-	cam.End3D()
-	
-	
 end
-
-//For some reason when you have flashlight on - some props will be drawn over the hud, no matter what
-GM.PostDrawOpaqueRenderables = GM.PreDrawOpaqueRenderables
 
 
 local slender = NULL
