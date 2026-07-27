@@ -204,6 +204,39 @@ function GM:Initialize()
 	
 	self:CheckUnlistedMaps()
 	
+	timer.Create("ServerAFKCheck", 5, 0, function()
+		for _, pl in ipairs(player.GetAll()) do
+			if IsValid(pl) and pl:Alive() and pl:Team() ~= TEAM_SPECTATOR and not pl:IsBot() then
+				local current_pos = pl:GetPos()
+				local current_ang = pl:EyeAngles()
+				
+				pl.LastActiveTime = pl.LastActiveTime or CurTime()
+				pl.LastActivePos = pl.LastActivePos or current_pos
+				pl.LastActiveAng = pl.LastActiveAng or current_ang
+
+				if pl.LastActivePos:DistToSqr(current_pos) > 25 or pl.LastActiveAng ~= current_ang then
+					pl.LastActiveTime = CurTime()
+					pl.LastActivePos = current_pos
+					pl.LastActiveAng = current_ang
+				else
+					if CurTime() - pl.LastActiveTime >= 100 then
+						pl:ChatPrint("Вы были убиты за бездействие в течение 100 секунд!")
+						if pl:Team() == TEAM_HUMENS then
+							pl:Kill()
+						elseif pl:Team() == TEAM_SLENDER then
+							pl:KillSilent()
+							pl:SetTeam(TEAM_SPECTATOR)
+							timer.Simple(3, function()
+								GAMEMODE:CheckSlenderman()
+							end)
+						end
+						pl.LastActiveTime = CurTime()
+					end
+				end
+			end
+		end
+	end)
+	
 end
 
 function GM:GetSlendermanSpawn()
@@ -359,6 +392,7 @@ function GM:InitPostEntity()
 end
 
 util.AddNetworkString( "InitialSpawn" )
+util.AddNetworkString( "PagePickedUp" )
 
 GM.LastSlender = nil
 function GM:PlayerInitialSpawn( pl )
@@ -366,8 +400,6 @@ function GM:PlayerInitialSpawn( pl )
 	if CurTime() - ROUNDTIME <= 2*60 or #player.GetAll() <= 1 then
 	
 		if #player.GetAll() > 1 and #team.GetPlayers(TEAM_SLENDER) <= 0 and #ents.FindByClass("slendy") <=0 then
-		
-			local slendy = player.GetAll()[math.random(1,#player.GetAll())]
 					
 			if self.VersusMode and !pl:IsBot() and self.LastSlender ~= pl then
 				pl:SetTeam(TEAM_SLENDER)
@@ -459,14 +491,12 @@ function GM:PlayerSpawn( pl )
 		
 		pl:SetModel("models/slenderman/slenderman.mdl")
 		
-		for i=1, 2 do
-			for k, v in pairs( self.SlenderBoneMods ) do
-				local bone = pl:LookupBone(k)
-				if (!bone) then continue end
-				pl:ManipulateBoneScale( bone, v.scale  )
-				pl:ManipulateBoneAngles( bone, v.angle  )
-				pl:ManipulateBonePosition( bone, v.pos  )
-			end
+		for k, v in pairs( self.SlenderBoneMods ) do
+			local bone = pl:LookupBone(k)
+			if (!bone) then continue end
+			pl:ManipulateBoneScale( bone, v.scale  )
+			pl:ManipulateBoneAngles( bone, v.angle  )
+			pl:ManipulateBonePosition( bone, v.pos  )
 		end
 		
 		pl:StripWeapons()
@@ -618,7 +648,7 @@ function GM:PlayerCanHearPlayersVoice( pListener, pTalker )
 	end
 	
 	if pTalker:Team() == TEAM_SPECTATOR and pListener:Team() == TEAM_SLENDER then
-		return true, false
+		return false, false
 	end
 	
 	return pListener:Team() == pTalker:Team(), false

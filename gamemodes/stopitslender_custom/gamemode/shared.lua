@@ -38,13 +38,16 @@ function TrueVisible(posa, posb, owner)
 end
 
 function GM:ShouldCollide( ent1, ent2 )
+	local isSlender1 = (ent1:IsPlayer() and ent1:IsSlenderman()) or ent1:GetClass() == "slendy"
+	local isSlender2 = (ent2:IsPlayer() and ent2:IsSlenderman()) or ent2:GetClass() == "slendy"
+
 	if ent1:IsPlayer() and ent2:IsPlayer() then
 		if ent1:IsSlenderman() and !ent1:IsSlenderVisible() and ent2:Team() == TEAM_HUMENS or ent2:IsSlenderman() and !ent2:IsSlenderVisible() and ent1:Team() == TEAM_HUMENS then
 			return false
 		end
 	end
-	if ent1:IsPlayer() and ent1:IsSlenderman() and (ent2:GetClass() == "prop_physics" or ent2:GetClass() == "prop_door_rotating") or
-		ent2:IsPlayer() and ent2:IsSlenderman() and (ent1:GetClass() == "prop_physics" or ent1:GetClass() == "prop_door_rotating") then
+	if isSlender1 and (ent2:GetClass() == "prop_physics" or ent2:GetClass() == "prop_door_rotating") or
+		isSlender2 and (ent1:GetClass() == "prop_physics" or ent1:GetClass() == "prop_door_rotating") then
 		return false
 	end
 	return true

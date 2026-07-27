@@ -149,7 +149,6 @@ function SWEP:Seen( newpos, newdot, checkvisibility )
 	
 end
 
-local nextswitch1 = 0
 local tracebox = {mask = MASK_SHOT}
 
 function SWEP:CheckTeleportPos()
@@ -168,7 +167,7 @@ function SWEP:CheckTeleportPos()
 		
 		local tr = util.TraceHull( tracebox )
 		
-		if !tr.Hit and !self:Seen( tracebox.endpos ) and TrueVisible(target:EyePos(),tracebox.endpos+vector_up*64,v) then
+		if !tr.Hit and !self:Seen( tracebox.endpos ) and TrueVisible(target:EyePos(),tracebox.endpos+vector_up*64,target) then
 			return tracebox.endpos, tracebox.start
 		end
 		
@@ -180,11 +179,11 @@ end
 
 function SWEP:PrimaryAttack()
 	if CLIENT then return end
-	if nextswitch1 >= CurTime() then return end
+	self.NextTeleportCooldown = self.NextTeleportCooldown or 0
+	if self.NextTeleportCooldown >= CurTime() then return end
 	if self:Seen() then return end
 	if !self:IsVisible() then return end
 	if game.GetWorld():GetDTInt( 1 ) < 4 then return end
-	nextswitch = CurTime() + 0.1
 	
 	local to, targetpos = self:CheckTeleportPos()
 	
@@ -193,7 +192,7 @@ function SWEP:PrimaryAttack()
 		local dir = (targetpos-self.Owner:GetPos()):GetNormal()
 		local ang = dir:Angle()
 		self.Owner:SetEyeAngles(Angle(0,ang.y,ang.r))	
-		nextswitch = CurTime() + 10
+		self.NextTeleportCooldown = CurTime() + 10
 	end
 end
 

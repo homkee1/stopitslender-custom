@@ -53,10 +53,6 @@ local CurrentSprint = MaxSprint
 local SprintDrain = 0.1
 local SprintRecharge = 1
 
-local AFKTime = 70 //How much seconds player should be allowed to be idle before being slayed
-local CurrentAFKTime = 0
-local LastAFKPos = vector_origin
-
 local staticamount = 0
 
 local VotingTime = 0
@@ -88,7 +84,7 @@ function GM:PaintStuff()
 	//local test = LocalPlayer():GetEyeTrace()
 	
 	tr.start = EyePos()
-	tr.endpos = VectorRand() * 1300
+	tr.endpos = EyePos() + VectorRand() * 1300
 	tr.filter = player.GetAll()
 	
 	local test = util.TraceLine( tr )
@@ -118,7 +114,6 @@ function GM:InitialSpawn()
 	
 	CurrentSprint = MaxSprint
 	staticamount = 0
-	CurrentAFKTime = CurTime() + AFKTime
 	
 	//just in case
 	if GetGlobalBool("night") and !redownloaded_lightmaps then
@@ -139,35 +134,6 @@ function FixMotionBlur()
 end
 
 local NextBeat = 0
-
-function GM:CheckAFK()
-	
-	if !LocalPlayer():Alive() or LocalPlayer():Team() == TEAM_SPECTATOR then 
-	CurrentAFKTime = 0
-	return end
-	if LocalPlayer():IsBot() then return end
-	
-	if CurrentAFKTime ~= 0 and CurrentAFKTime <= CurTime() then
-		chat.AddText( Color( 255,255,255 ),"You were killed for being idle for too long!" )
-		
-		if LocalPlayer():Team() == TEAM_HUMENS then
-			RunConsoleCommand("kill")
-		end
-		
-		if LocalPlayer():Team() == TEAM_SLENDER then
-			RunConsoleCommand("afk_slender")
-		end
-		
-		
-		CurrentAFKTime = 0
-	end
-	
-	if LastAFKPos ~= LocalPlayer():GetPos() then
-		LastAFKPos = LocalPlayer():GetPos()
-		CurrentAFKTime = CurTime() + AFKTime
-	end
-	
-end
 
 //Once again zs based ambient sounds
 function GM:PlayAmbient(am)	
@@ -257,8 +223,6 @@ function GM:Think()
 			changedbones = false
 		end
 	end
-	
-	self:CheckAFK()
 	
 	self:CheckVoting()	
 	
@@ -807,10 +771,6 @@ end)
 
 function GM:PlayerBindPress(ply, bind, pressed)
 
-	if bind and ply:Team() ~= TEAM_SPECTATOR then
-		CurrentAFKTime = CurTime() + AFKTime
-	end
-
 	if string.find ( bind, "invnext" ) then
 		
 		local wep = IsValid(ply:GetActiveWeapon()) and ply:GetActiveWeapon():GetClass() == "camera" and ply:GetActiveWeapon()
@@ -923,7 +883,10 @@ local drawnight = false
 
 hook.Add("Think","SlenderFog",function()
 	
-	if LocalPlayer():IsSlenderman() then
+	local ply = LocalPlayer()
+	if not IsValid(ply) then return end
+	
+	if ply:IsSlenderman() then
 		if drawnight then
 			hook.Remove( "SetupWorldFog","AddNightFog" )
 			hook.Remove( "SetupSkyboxFog","AddNightFogSkybox" )
@@ -1165,3 +1128,10 @@ end)
 function GM:IsNight()
 	return GetGlobalBool("night")
 end
+
+net.Receive( "PagePickedUp", function( len )
+	local ent = net.ReadEntity()
+	if IsValid(ent) then
+		ent.Taken = true
+	end
+end)

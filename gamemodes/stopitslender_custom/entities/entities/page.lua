@@ -87,14 +87,15 @@ if SERVER then
 			if activator:GetPages() > game.GetWorld():GetDTInt( 1 ) then
 				
 				if game.GetWorld():GetDTInt( 1 ) < 8 then
-					SLENDER_TELEPORT_STEP = SLENDER_TELEPORT_STEP
 					SLENDER_TELEPORT_FREQUENCY = SLENDER_TELEPORT_FREQUENCY - 0.13
 				end
 				
 				game.GetWorld():SetDTInt( 1, game.GetWorld():GetDTInt( 1 ) + 1 )
 			end
 			
-			activator:SendLua("Entity("..self:EntIndex()..").Taken = true")
+			net.Start("PagePickedUp")
+				net.WriteEntity(self)
+			net.Send(activator)
 			table.insert(self.Players,activator)
 			
 			if game.GetWorld():GetDTInt( 1 ) >= 3 then

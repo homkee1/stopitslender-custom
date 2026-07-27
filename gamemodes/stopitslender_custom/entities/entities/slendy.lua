@@ -35,6 +35,7 @@ function ENT:Initialize()
 		self:SetSolid( SOLID_BBOX ) 
 		self:SetMoveType( MOVETYPE_STEP )
 		self:SetSequence( self:LookupSequence("idle_subtle") )
+		self:SetCustomCollisionCheck( true )
 		//self:DropToFloor()
 		
 		for k, v in pairs( GAMEMODE.SlenderBoneMods ) do
@@ -77,7 +78,7 @@ function ENT:Think()
 			
 			self:Attack()
 			
-			self.NextAttack = ct + 0.0005
+			self.NextAttack = ct + 0.1
 		end
 	
 	end
@@ -250,12 +251,12 @@ end
 end
 
 function ENT:GetClosest()
-	local Closest = 0
+	local Closest = 999999999
 	local dist = 0
 	local Ent = nil
 		for k, v in ipairs(team.GetPlayers(TEAM_HUMENS)) do
-			dist = v:GetPages()//v:GetPos():Distance( self.Entity:GetPos() )
-				if( dist >= Closest) then
+			dist = v:GetPos():Distance( self:GetPos() )
+				if( dist < Closest) then
 					if v:IsPlayer() and v:Alive() then
 						Closest = dist
 						Ent = v

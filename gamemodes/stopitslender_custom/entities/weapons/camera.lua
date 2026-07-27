@@ -34,6 +34,7 @@ function SWEP:Initialize()
 	end
 	
 	self:SetBattery( self.MaxBattery )
+	self.NextHeal = 0
 
 end
 
