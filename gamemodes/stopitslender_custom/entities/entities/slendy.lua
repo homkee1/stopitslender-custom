@@ -59,7 +59,11 @@ function ENT:Think()
 	local ct = CurTime()
 	
 	if SERVER then
-		
+		-- Считываем динамические дистанции из админ-панели
+		self.StuckDistance = GetGlobalInt("slender_bot_stuck_dist", 60)
+		self.AttackDistance = GetGlobalInt("slender_bot_attack_dist", 650)
+		self.DamageDistance = GetGlobalInt("slender_bot_damage_dist", 650)
+
 		-- Пока нет записок, боты подвержены гравитации и падают вниз
 		if not FIRST_PAGE then
 			if self:GetMoveType() ~= MOVETYPE_FLYGRAVITY then
@@ -72,13 +76,14 @@ function ENT:Think()
 			end
 		end
 
-		self.NextTeleport = self.NextTeleport or ct + SLENDER_TELEPORT_FREQUENCY
+		local botFreq = GetGlobalFloat("slender_bot_teleport_freq", 1.35)
+		self.NextTeleport = self.NextTeleport or ct + botFreq
 		
 		if self.NextTeleport < ct then
 			
 			self:Teleport()
 			
-			self.NextTeleport = ct + SLENDER_TELEPORT_FREQUENCY
+			self.NextTeleport = ct + botFreq
 			
 			self:SetSequence( self:LookupSequence("idle_subtle") )
 			self:SetCycle(0)
@@ -210,7 +215,8 @@ function ENT:Teleport()
 	
 	local tr = util.TraceLine( ground )
 	
-	local final = cur + dir * ( distance>=1100 and SLENDER_TELEPORT_STEP*6 or math.min(SLENDER_TELEPORT_STEP,nicedistance))
+	local botStep = GetGlobalInt("slender_bot_teleport_step", 90)
+	local final = cur + dir * ( distance>=1100 and botStep*6 or math.min(botStep,nicedistance))
 	
 	if distance <= 800 and math.random(20) == 1 and clear and target:SyncAngles():Forward():Dot((target:GetPos()-cur):GetNormal()) > -0.3 then
 		final = target:GetPos()+vector_up*4+target:SyncAngles():Forward()*700

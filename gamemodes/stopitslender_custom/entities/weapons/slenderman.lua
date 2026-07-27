@@ -33,6 +33,9 @@ local ents = ents
 function SWEP:Think()
 
 	local ct = CurTime()
+	self.StuckDistance = GetGlobalInt("slender_bot_stuck_dist", 60)
+	self.AttackDistance = GetGlobalInt("slender_bot_attack_dist", 650)
+	self.DamageDistance = GetGlobalInt("slender_bot_damage_dist", 645)
 
 	if self.Owner:GetVelocity():Length() > 1 and self:GetInvisMode() then
 		if not self:Seen() then

@@ -208,6 +208,7 @@ function GM:Initialize()
 	self:CheckUnlistedMaps()
 	
 	timer.Create("ServerAFKCheck", 5, 0, function()
+		if not GetGlobalBool("slender_afk_enabled", true) then return end
 		for _, pl in ipairs(player.GetAll()) do
 			if IsValid(pl) and pl:Alive() and pl:Team() ~= TEAM_SPECTATOR and not pl:IsBot() then
 				local current_pos = pl:GetPos()

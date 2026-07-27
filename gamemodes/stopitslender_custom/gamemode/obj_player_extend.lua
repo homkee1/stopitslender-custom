@@ -51,6 +51,10 @@ end
 function meta:UseRTV()
 
 	if CLIENT then return end
+	if not GetGlobalBool("slender_rtv_enabled", true) then
+		self:ChatPrint("[Slender] Голосование RTV отключено администратором!")
+		return
+	end
 	
 	if GAMEMODE.RTV_Players[self:SteamID()] then return end
 	

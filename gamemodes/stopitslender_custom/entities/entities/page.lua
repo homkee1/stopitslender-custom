@@ -94,7 +94,8 @@ if SERVER then
 			if activator:GetPages() > game.GetWorld():GetDTInt( 1 ) then
 				
 				if game.GetWorld():GetDTInt( 1 ) < 8 then
-					SLENDER_TELEPORT_FREQUENCY = SLENDER_TELEPORT_FREQUENCY - 0.13
+					local currentFreq = GetGlobalFloat("slender_bot_teleport_freq", 1.35)
+					SetGlobalFloat("slender_bot_teleport_freq", math.Clamp(currentFreq - 0.13, 0.1, 5))
 				end
 				
 				game.GetWorld():SetDTInt( 1, game.GetWorld():GetDTInt( 1 ) + 1 )
