@@ -71,10 +71,12 @@ end
 local tr = {mask = MASK_SOLID}
 function GM:PaintStuff()
 	
-	if not LocalPlayer():Alive() then return end
+	local ply = LocalPlayer()
+	if not IsValid(ply) or not ply:IsPlayer() or not ply:Alive() then return end
 	if decaltime >= CurTime() then return end
 	
-	decaltime = CurTime() + math.random(1,3) + math.Clamp( 4 - LocalPlayer():GetPages(),0,4)
+	local pages = ply.GetPages and ply:GetPages() or 0
+	decaltime = CurTime() + math.random(1,3) + math.Clamp( 4 - pages, 0, 4)
 	
 	//local test = LocalPlayer():GetEyeTrace()
 	
@@ -189,12 +191,14 @@ local changedbones = false
 function GM:Think()
 	
 	local MySelf = LocalPlayer()
+	if not IsValid(MySelf) or not MySelf:IsPlayer() then return end
 	
-	if MySelf and not checked_first_initial then
+	if not checked_first_initial then
 		self:InitialSpawn()
 	end
 	
-	local am = Entity(0):GetDTInt( 1 ) or MySelf:GetPages()
+	local pages = MySelf.GetPages and MySelf:GetPages() or 0
+	local am = (IsValid(Entity(0)) and Entity(0).GetDTInt) and Entity(0):GetDTInt( 1 ) or pages
 	
 	self:PlayAmbient(am)
 	
@@ -250,8 +254,9 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 	
 
 	local MySelf = LocalPlayer()
+	if not IsValid(MySelf) or not MySelf:IsPlayer() then return end
 	
-	local w,h = ScrW(), ScrH()
+	local w,h = ScrW(), ScrH()	
 	local gap = w/21.4
 	
 	local ang = EyeAngles()
@@ -322,8 +327,10 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 		local name = MySelf:GetObserverTarget().Nick and MySelf:GetObserverTarget():Nick() or MySelf:GetObserverTarget().PrintName or "NONE"
 		draw.SimpleText("Spectating "..name, "Tahoma_lines18",w-gap*1.3, h-gap*1.3-23, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
 		
-		local pages = MySelf:GetObserverTarget():IsPlayer() and MySelf:GetObserverTarget():GetPages() or 0
-		draw.SimpleText("Pages "..pages.."/"..MySelf:GetMaxPages(), "Tahoma_lines18",w-gap*1.3, h-gap*1.3, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
+		local obs = MySelf:GetObserverTarget()
+		local pages = (IsValid(obs) and obs:IsPlayer() and obs.GetPages) and obs:GetPages() or 0
+		local maxPages = (IsValid(MySelf) and MySelf.GetMaxPages) and MySelf:GetMaxPages() or 8
+		draw.SimpleText("Pages "..pages.."/"..maxPages, "Tahoma_lines18",w-gap*1.3, h-gap*1.3, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
 		
 	else
 		if MySelf:Team() == TEAM_SPECTATOR then
@@ -341,7 +348,9 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 			end
 		end
 		if MySelf:Team() ~= TEAM_SLENDER then
-			draw.SimpleText("Pages "..MySelf:GetPages().."/"..MySelf:GetMaxPages(), "Tahoma_lines18",w-gap*1.3, h-gap*1.3, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
+			local pages = (IsValid(MySelf) and MySelf.GetPages) and MySelf:GetPages() or 0
+			local maxPages = (IsValid(MySelf) and MySelf.GetMaxPages) and MySelf:GetMaxPages() or 8
+			draw.SimpleText("Pages "..pages.."/"..maxPages, "Tahoma_lines18",w-gap*1.3, h-gap*1.3, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
 		end
 	end
 
@@ -615,6 +624,7 @@ end
 function GM:HUDPaintBackground()
 	
 	local MySelf = LocalPlayer()
+	if not IsValid(MySelf) or not MySelf:IsPlayer() then return end
 	
 	local w,h = ScrW(), ScrH()
 	
@@ -750,7 +760,8 @@ function GM:HUDPaintBackground()
 end
 
 hook.Add("AdjustMouseSensitivity", "DontLook", function(default_sensitivity)
-	if LocalPlayer():Alive() and LocalPlayer():Team() == TEAM_HUMENS and staticamount and staticamount > 0 then
+	local ply = LocalPlayer()
+	if IsValid(ply) and ply:IsPlayer() and ply:Alive() and ply:Team() == TEAM_HUMENS and staticamount and staticamount > 0 then
 		return math.Clamp( 1 - staticamount, 0.4,1)
 	end
 end)
@@ -895,7 +906,7 @@ local drawnight = false
 hook.Add("Think","SlenderFog",function()
 	
 	local ply = LocalPlayer()
-	if not IsValid(ply) then return end
+	if not IsValid(ply) or not ply:IsPlayer() or not ply.IsSlenderman then return end
 	
 	if ply:IsSlenderman() then
 		if drawnight then
@@ -930,7 +941,8 @@ local vector_down = vector_up * -1
 
 function GM:PrePlayerDraw(pl)
 	
-	if LocalPlayer():IsSlenderman() and pl:Team() == TEAM_HUMENS then
+	local ply = LocalPlayer()
+	if IsValid(ply) and ply:IsPlayer() and ply.IsSlenderman and ply:IsSlenderman() and pl:Team() == TEAM_HUMENS then
 		colormodulation = true
 		local health = pl:Health() / 100
 		cam.IgnoreZ(true)

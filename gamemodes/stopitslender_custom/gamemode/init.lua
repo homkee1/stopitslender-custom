@@ -169,7 +169,7 @@ function GM:CheckUnlistedMaps()
 	if !self.IncludeAvalaibleMaps then return end
 	
 	local needed_maps = {}
-	local all_maps = file.Find( "maps/*.bsp", "GAME" )
+	local all_maps = file.Find( "maps/*.bsp", "GAME" ) or {}
 	
 	for _,mapname in pairs( all_maps ) do
 		if string.find( mapname, "slender_" ) then
@@ -180,16 +180,19 @@ function GM:CheckUnlistedMaps()
 	
 	local current_maps = {}
 	
-	for k,v in pairs( self.Maps ) do
+	local mapsTable = self.Maps or {}
+	for k,v in pairs( mapsTable ) do
 		if v and v.map then
 			table.insert( current_maps, v.map )
 		end
 	end
 	
-	for k, v in pairs( needed_maps ) do
-		if !table.HasValue( current_maps, v ) then
-			self.Maps[ #self.Maps + 1 ] = {map = v, votes = 0}
-			UPDATE_MAP_LIST = true
+	if self.Maps then
+		for k, v in pairs( needed_maps ) do
+			if !table.HasValue( current_maps, v ) then
+				self.Maps[ #self.Maps + 1 ] = {map = v, votes = 0}
+				UPDATE_MAP_LIST = true
+			end
 		end
 	end
 		

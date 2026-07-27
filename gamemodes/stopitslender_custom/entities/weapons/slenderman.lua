@@ -267,7 +267,9 @@ function SWEP:DrawHUD()
 	
 	for k,v in pairs(team.GetPlayers(TEAM_HUMENS)) do
 		local pos = v:GetShootPos():ToScreen()
-		draw.SimpleText(v:GetPages().."/"..v:GetMaxPages(), "Tahoma_lines23",pos.x, pos.y, Color(215,215,215,250), TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
+		local pages = (v.GetPages) and v:GetPages() or 0
+		local maxPages = (v.GetMaxPages) and v:GetMaxPages() or 8
+		draw.SimpleText(pages.."/"..maxPages, "Tahoma_lines23",pos.x, pos.y, Color(215,215,215,250), TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
 	end
 	
 	local visible = self:IsVisible()

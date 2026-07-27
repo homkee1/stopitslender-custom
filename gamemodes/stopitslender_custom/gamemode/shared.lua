@@ -137,7 +137,7 @@ hook.Add("SetupMove", "Slender_Stamina", function(ply, mv, cmd)
 
 	local isExhausted = ply.ExhaustedTime > CurTime()
 
-	local isMoving = mv:GetButtons() & (IN_FORWARD + IN_BACK + IN_MOVELEFT + IN_MOVERIGHT) != 0
+	local isMoving = bit.band(mv:GetButtons(), IN_FORWARD + IN_BACK + IN_MOVELEFT + IN_MOVERIGHT) != 0
 	local isSprinting = mv:KeyDown(IN_SPEED) and isMoving and ply:OnGround() and not ply:Crouching()
 
 	if isSprinting and not isExhausted and ply.Stamina > 0 then
