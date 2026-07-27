@@ -3,6 +3,11 @@
 
 include("obj_player_extend.lua")
 
+if SERVER then
+	AddCSLuaFile("sh_adminpanel.lua")
+end
+include("sh_adminpanel.lua")
+
 //humens is on purpose
 TEAM_HUMENS = 3
 TEAM_SLENDER = 4
