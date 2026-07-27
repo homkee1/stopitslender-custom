@@ -473,6 +473,11 @@ function GM:PlayerSpawn( pl )
 		pl:SetWalkSpeed(125)
 		pl:SetRunSpeed(190)
 		
+		pl.Stamina = 100
+		pl.ExhaustedTime = 0
+		pl:SetNWFloat("Stamina", 100)
+		pl:SetNWBool("Exhausted", false)
+		
 		pl:SetJumpPower(160)
 			
 		pl:SetHealth( 100 )

@@ -47,12 +47,7 @@ local nexttick = 0
 local ambience = nil
 local ambiencesound = Sound("ambient/atmosphere/ambience_base.wav")
 
-local MaxSprint = 100
-local CurrentSprint = MaxSprint
-
-local SprintDrain = 0.1
-local SprintRecharge = 1
-
+local StaminaBarAlpha = 0
 local staticamount = 0
 
 local VotingTime = 0
@@ -191,9 +186,6 @@ local scale2 = {
 
 local changedbones = false
 
-local nextdrain = 0
-local nextcharge = 0
-local nextsprint = 0
 function GM:Think()
 	
 	local MySelf = LocalPlayer()
@@ -230,25 +222,6 @@ function GM:Think()
 	if !MySelf:Alive() then return end
 	
 	self:PaintStuff()
-	
-	if MySelf:KeyDown( IN_SPEED ) and MySelf:GetVelocity():Length() > 10 then
-		if CurrentSprint > 0 then
-			if nextdrain <= CurTime() then
-				CurrentSprint = math.Clamp(CurrentSprint - 1,0,100)
-				nextdrain = CurTime() + SprintDrain
-				if CurrentSprint == 0 then
-					nextsprint = CurTime() + 10
-				end
-			end
-		end
-	else
-		if CurrentSprint < MaxSprint then
-			if nextcharge <= CurTime() then
-				CurrentSprint = math.Clamp(CurrentSprint + 1,0,100)
-				nextcharge = CurTime() + SprintRecharge
-			end
-		end
-	end
 	
 end
 
@@ -369,6 +342,44 @@ function GM:PreDrawOpaqueRenderables()//HUDPaint()PostDrawOpaqueRenderables
 		end
 		if MySelf:Team() ~= TEAM_SLENDER then
 			draw.SimpleText("Pages "..MySelf:GetPages().."/"..MySelf:GetMaxPages(), "Tahoma_lines18",w-gap*1.3, h-gap*1.3, Color(255,255,255,100), TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
+		end
+	end
+
+	-- Stamina Bar
+	if MySelf:Team() != TEAM_SLENDER then
+		local ToWatch = IsValid(MySelf:GetObserverTarget()) and MySelf:GetObserverTarget():IsPlayer() and MySelf:GetObserverTarget() or MySelf
+		local staminaVal = ToWatch:GetNWFloat("Stamina", 100)
+		local isExhausted = ToWatch:GetNWBool("Exhausted", false)
+
+		local targetAlpha = 0
+		if staminaVal < 100 or isExhausted then
+			targetAlpha = 70
+		end
+		StaminaBarAlpha = math.Approach(StaminaBarAlpha, targetAlpha, FrameTime() * 150)
+
+		if StaminaBarAlpha > 0 then
+			local barW, barH = 200, 20
+			local barX = w / 2 - barW / 2
+			local barY = h - gap * 1.5
+
+			local mainColor = isExhausted and Color(215, 15, 15, StaminaBarAlpha) or Color(255, 255, 255, StaminaBarAlpha)
+
+			-- Draw fill
+			surface.SetDrawColor(mainColor)
+			surface.DrawRect(barX + 3, barY + 3, (barW - 6) * (staminaVal / 100), barH - 6)
+
+			-- Draw division lines (9 lines for 10 segments)
+			surface.SetDrawColor(Color(0, 0, 0, StaminaBarAlpha * 0.5))
+			for i = 1, 9 do
+				local lineX = barX + (barW / 10) * i
+				surface.DrawLine(lineX, barY + 3, lineX, barY + barH - 3)
+			end
+
+			-- Draw outlines
+			surface.SetDrawColor(mainColor)
+			surface.DrawOutlinedRect(barX, barY, barW, barH)
+			surface.SetDrawColor(mainColor)
+			surface.DrawOutlinedRect(barX - 1, barY - 1, barW + 2, barH + 2)
 		end
 	end
 	
@@ -809,7 +820,7 @@ function GM:PlayerBindPress(ply, bind, pressed)
 	end
 	
 	if ply:Team() == TEAM_HUMENS and ply:Alive() and string.find ( bind, "+speed" ) then
-		return nextsprint and nextsprint >= CurTime() or CurrentSprint and CurrentSprint == 0
+		return (ply.ExhaustedTime and ply.ExhaustedTime > CurTime()) or (ply.Stamina and ply.Stamina <= 0)
 	end
 	
 	if ply:Team() == TEAM_HUMENS and (string.find ( bind, "say_team" ) or string.find ( bind, "messagemode2" )) then

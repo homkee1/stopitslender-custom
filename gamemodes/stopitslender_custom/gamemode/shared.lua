@@ -128,3 +128,35 @@ function GM:PlayerStepSoundTime( ply, iType, bWalking )
 	return fStepTime
 	
 end
+
+hook.Add("SetupMove", "Slender_Stamina", function(ply, mv, cmd)
+	if ply:Team() != TEAM_HUMENS or not ply:Alive() then return end
+
+	ply.Stamina = ply.Stamina or 100
+	ply.ExhaustedTime = ply.ExhaustedTime or 0
+
+	local isExhausted = ply.ExhaustedTime > CurTime()
+
+	local isMoving = mv:GetButtons() & (IN_FORWARD + IN_BACK + IN_MOVELEFT + IN_MOVERIGHT) != 0
+	local isSprinting = mv:KeyDown(IN_SPEED) and isMoving and ply:OnGround() and not ply:Crouching()
+
+	if isSprinting and not isExhausted and ply.Stamina > 0 then
+		ply.Stamina = math.Clamp(ply.Stamina - FrameTime() * 10, 0, 100)
+		if ply.Stamina <= 0 then
+			ply.ExhaustedTime = CurTime() + 10
+		end
+		mv:SetMaxSpeed(190)
+		mv:SetMaxClientSpeed(190)
+	else
+		ply.Stamina = math.Clamp(ply.Stamina + FrameTime() * 1, 0, 100)
+		if mv:KeyDown(IN_SPEED) then
+			mv:SetMaxSpeed(125)
+			mv:SetMaxClientSpeed(125)
+		end
+	end
+
+	if SERVER then
+		ply:SetNWFloat("Stamina", ply.Stamina)
+		ply:SetNWBool("Exhausted", ply.ExhaustedTime > CurTime())
+	end
+end)
