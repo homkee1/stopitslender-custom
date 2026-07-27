@@ -60,6 +60,18 @@ function ENT:Think()
 	
 	if SERVER then
 		
+		-- Пока нет записок, боты подвержены гравитации и падают вниз
+		if not FIRST_PAGE then
+			if self:GetMoveType() ~= MOVETYPE_FLYGRAVITY then
+				self:SetMoveType( MOVETYPE_FLYGRAVITY )
+			end
+		else
+			if self:GetMoveType() ~= MOVETYPE_STEP then
+				self:SetMoveType( MOVETYPE_STEP )
+				self:SetLocalVelocity( vector_origin ) -- сбрасываем скорость падения при переходе в режим телепортов
+			end
+		end
+
 		self.NextTeleport = self.NextTeleport or ct + SLENDER_TELEPORT_FREQUENCY
 		
 		if self.NextTeleport < ct then

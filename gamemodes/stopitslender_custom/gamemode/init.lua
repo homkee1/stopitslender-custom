@@ -151,14 +151,14 @@ end
 
 function GM:CheckSlenderman()
 	
-	if #player.GetAll() <= 1 or #team.GetPlayers(TEAM_SLENDER) <= 0 and #ents.FindByClass("slendy") <=0 then
+	if #team.GetPlayers(TEAM_SLENDER) <= 0 and #ents.FindByClass("slendy") <= 0 then
 		local ent = ents.Create( "slendy" )
-		ent:SetPos(self:GetSlendermanSpawn() or vector_origin)
+		local spawnPos = self:GetSlendermanSpawn()
+		ent:SetPos(spawnPos)
 		ent:Spawn()
 		ent:Activate()
-		print"Slenderman is bot!"
-		game.GetWorld():SetDTEntity(2,ent)
-		//self.LastSlender = ent
+		print("Slenderman is bot!")
+		game.GetWorld():SetDTEntity(2, ent)
 	end
 	
 end
@@ -243,18 +243,67 @@ function GM:Initialize()
 end
 
 function GM:GetSlendermanSpawn()
-	
+	local positions = {}
+
+	-- 1. Проверяем кастомную таблицу спавнов Слендера
 	if self.SlenderSpawn[game.GetMap()] then
-		return self.SlenderSpawn[game.GetMap()][math.random(1,#self.SlenderSpawn[game.GetMap()])]
+		for _, pos in ipairs(self.SlenderSpawn[game.GetMap()]) do
+			table.insert(positions, pos)
+		end
 	end
-	
+
+	-- 2. Проверяем энтити slender_spawn
 	local spawns = ents.FindByClass("slender_spawn")
-	
-	if #spawns > 0 then
-		return spawns[math.random(1,#spawns)]:GetPos()+vector_up*2
+	for _, ent in ipairs(spawns) do
+		if IsValid(ent) then
+			table.insert(positions, ent:GetPos() + vector_up * 2)
+		end
 	end
-	
-	return 	
+
+	-- 3. Если точек нет, используем info_player_start
+	if #positions == 0 then
+		local playerSpawns = ents.FindByClass("info_player_start")
+		for _, ent in ipairs(playerSpawns) do
+			if IsValid(ent) then
+				table.insert(positions, ent:GetPos() + vector_up * 10)
+			end
+		end
+	end
+
+	-- Если вообще ничего не нашли, возвращаем центр мира
+	if #positions == 0 then
+		return vector_origin
+	end
+
+	-- Выбираем случайную базовую точку спавна
+	local basePos = positions[math.random(1, #positions)]
+
+	-- Считаем количество сущностей (игроков и ботов) в радиусе 300 по X/Y без ограничения по высоте
+	local offsetCount = 0
+	local checkRadius = 300
+
+	-- Получаем список игроков и ботов
+	local entities = table.Copy(player.GetAll())
+	table.Add(entities, ents.FindByClass("slendy"))
+
+	for _, ent in ipairs(entities) do
+		if IsValid(ent) then
+			local isPlayer = ent:IsPlayer()
+			local isBot = ent:GetClass() == "slendy"
+
+			-- Учитываем только живых игроков или ботов
+			if isBot or (isPlayer and ent:Alive()) then
+				-- Измеряем расстояние только по X/Y плоскости (игнорируя высоту Z)
+				local horizontalDist = (ent:GetPos() - basePos):Length2D()
+				if horizontalDist < checkRadius then
+					offsetCount = offsetCount + 1
+				end
+			end
+		end
+	end
+
+	-- Смещаем точку спавна вверх на 120 юнитов за каждую найденную сущность
+	return basePos + Vector(0, 0, offsetCount * 120)
 end
 
 //Actually it was really stupid idea to avoid adding this from begining
@@ -523,7 +572,13 @@ function GM:PlayerSpawn( pl )
 		
 		pl:Give("slenderman")
 		
-		pl:SetPos(self:GetSlendermanSpawn() or vector_origin)
+		local spawnPos = self:GetSlendermanSpawn() or vector_origin
+		for _, ent in ipairs(ents.FindByClass("slendy")) do
+			if IsValid(ent) and ent:GetPos():DistToSqr(spawnPos) < 10000 then
+				spawnPos = spawnPos + Vector(0, 0, 130)
+			end
+		end
+		pl:SetPos(spawnPos)
 		
 	end
 	
@@ -536,6 +591,13 @@ function GM:PlayerSpawn( pl )
 	end
 	
 	pl:CollisionRulesChanged()
+	
+	-- Проверяем и спавним бота Слендера сразу после спавна игрока
+	timer.Simple(1, function()
+		if IsValid(self) then
+			self:CheckSlenderman()
+		end
+	end)
 	
 end
 

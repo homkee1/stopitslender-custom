@@ -406,13 +406,17 @@ function GM:HUDPaint()
 		if MySelf:KeyDown(IN_ATTACK2) then
 			gui.EnableScreenClicker( true )
 		else
-			gui.EnableScreenClicker( false )
+			if not (SlenderUI and IsValid(SlenderUI.Frame)) then
+				gui.EnableScreenClicker( false )
+			end
 		end
 	else
 		if scoreboard_alpha ~= 0 then
 			scoreboard_alpha = math.Approach ( scoreboard_alpha, 0, FrameTime()*200 )
 		end
-		gui.EnableScreenClicker( false )
+		if not (SlenderUI and IsValid(SlenderUI.Frame)) then
+			gui.EnableScreenClicker( false )
+		end
 	end
 	
 	if scoreboard_alpha > 0 then
@@ -431,35 +435,38 @@ function GM:HUDPaint()
 		
 		local offsetY = 0
 		
-		local slender = Entity(0):GetDTEntity(2) or NULL
-		
-		if IsValid(slender) then
-		
-			local name = slender.Nick and slender:Nick() or slender.PrintName.." (BOT)" or "NONE"
-			local ping = slender.Ping and slender:Ping() or ""
-			local muted = slender.IsMuted and slender:IsMuted() or false
-			
-			draw.SimpleText(name, "Tahoma_lines23",sX+6,sY+4, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
-			draw.SimpleText(ping, "Tahoma_lines23",sX+sW-6,sY+4, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
-			draw.SimpleText(muted and "MUTED" or "", "Tahoma_lines23",sX+sW-6-45,sY+4+offsetY, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
-			
-			local mx,my = gui.MousePos()
-		
-			if mx > sX and mx < sX+sW and my > sY+offsetY and my < sY+offsetY+25 then
-			
-				if input.IsMouseDown( MOUSE_LEFT ) and nextclick <= CurTime() and slender:IsPlayer() then
-					slender:SetMuted( !muted )
-					nextclick = CurTime() + 1
-				end
-				
-				draw.SimpleText(name, "Tahoma_lines23",sX+6,sY+4, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
-				draw.SimpleText(ping, "Tahoma_lines23",sX+sW-6,sY+4, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
-				draw.SimpleText(muted and "MUTED" or "", "Tahoma_lines23",sX+sW-6-45,sY+4+offsetY, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
-
+		local allSlenders = {}
+		for _, p in ipairs(player.GetAll()) do
+			if p:Team() == TEAM_SLENDER then
+				table.insert(allSlenders, p)
 			end
-			
-			
-			offsetY = offsetY + 23 + 6
+		end
+		for _, b in ipairs(ents.FindByClass("slendy")) do
+			table.insert(allSlenders, b)
+		end
+
+		local offsetY = 0
+		
+		for _, slender in ipairs(allSlenders) do
+			if IsValid(slender) then
+				local name = slender.Nick and slender:Nick() or "Бот Слендер #" .. slender:EntIndex()
+				local ping = slender.Ping and slender:Ping() or ""
+				local muted = slender.IsMuted and slender:IsMuted() or false
+
+				draw.SimpleText(name, "Tahoma_lines23", sX+6, sY+4+offsetY, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+				draw.SimpleText(ping, "Tahoma_lines23", sX+sW-6, sY+4+offsetY, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
+				draw.SimpleText(muted and "MUTED" or "", "Tahoma_lines23", sX+sW-6-45, sY+4+offsetY, Color(215,15,15,scoreboard_alpha), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
+
+				local mx, my = gui.MousePos()
+				if mx > sX and mx < sX+sW and my > sY+offsetY and my < sY+offsetY+25 then
+					if input.IsMouseDown(MOUSE_LEFT) and nextclick <= CurTime() and slender:IsPlayer() then
+						slender:SetMuted(!muted)
+						nextclick = CurTime() + 1
+					end
+				end
+
+				offsetY = offsetY + 23 + 6
+			end
 		end
 		
 		for _,pl in ipairs(player.GetAll()) do
@@ -607,40 +614,60 @@ function GM:HUDPaintBackground()
 		staticloop = CreateSound( MySelf, staticsound )
 	end
 
-	local slender = Entity(0):GetDTEntity(2) ~= MySelf and Entity(0):GetDTEntity(2) or NULL
-
-	local visible = true
-	
-	if IsValid(slender) and slender:IsPlayer() then
-		local wep = IsValid(slender:GetActiveWeapon()) and slender:GetActiveWeapon():GetClass() == "slenderman" and slender:GetActiveWeapon()
-		
-		if wep and wep.IsVisible then
-			visible =  wep:IsVisible()
+	local allSlenders = {}
+	for _, p in ipairs(player.GetAll()) do
+		if p:Team() == TEAM_SLENDER and p ~= MySelf then
+			table.insert(allSlenders, p)
 		end
 	end
-	
+	for _, b in ipairs(ents.FindByClass("slendy")) do
+		table.insert(allSlenders, b)
+	end
+
 	local ToWatch = IsValid(MySelf:GetObserverTarget()) and MySelf:GetObserverTarget():IsPlayer() and MySelf:GetObserverTarget():Team() == TEAM_HUMENS and MySelf:GetObserverTarget() or MySelf
 	
 	local addstatic = 0
-	
 	local am = math.Clamp(ToWatch:Health()/100,0,1)
 	
 	if am <= 0.3 and am > 0 then
 		addstatic = math.Clamp(0.5 - am,0,0.5)
 	end
 	
-	local staticX, staticY = w/2,h/2
+	local staticX, staticY = w/2, h/2
+	local closestDist = 999999
+
+	for _, slender in ipairs(allSlenders) do
+		local visible = true
+		if slender:IsPlayer() then
+			local wep = IsValid(slender:GetActiveWeapon()) and slender:GetActiveWeapon():GetClass() == "slenderman" and slender:GetActiveWeapon()
+			if wep and wep.IsVisible then
+				visible = wep:IsVisible()
+			end
+		end
+
+		if visible and ToWatch:Alive() then
+			local dist = ToWatch:GetPos():Distance(slender:GetPos())
+			local withinStaticDist = dist <= 650
+			local lookingAtSlender = ToWatch:SyncAngles():Forward():Dot((ToWatch:GetPos()-slender:GetPos()):GetNormal()) < -0.3
+			local hasLOS = TrueVisible(EyePos(), slender:NearestPoint(EyePos()), ToWatch)
+
+			if (withinStaticDist and lookingAtSlender and hasLOS) or dist <= 100 then
+				local calculatedStatic = math.Clamp( ((650-dist)/650)^(1/1.1), 0, 1 )
+				if calculatedStatic > addstatic then
+					addstatic = calculatedStatic
+					closestDist = dist
+					local pos = (slender:GetPos()+vector_up*60):ToScreen()
+					if pos.x > 110 and pos.x < w-110 and pos.y > 110 and pos.y < h-110 then	
+						staticX, staticY = pos.x, pos.y
+					end
+				end
+			end
+		end
+	end
 	
-	if IsValid(slender) and visible and ToWatch:Alive() and (ToWatch:GetPos():Distance(slender:GetPos()) <= 650 and ToWatch:SyncAngles():Forward():Dot((ToWatch:GetPos()-slender:GetPos()):GetNormal()) < -0.3 and TrueVisible(EyePos(),slender:NearestPoint(EyePos()),ToWatch) or ToWatch:GetPos():Distance(slender:GetPos()) <= 100) then
-		addstatic = math.Clamp( ((650-ToWatch:GetPos():Distance(slender:GetPos()))/650)^(1/1.1), 0, 1 )
-		
-		local dist = ToWatch:GetPos():Distance(slender:GetPos())
-		
-		local pos = (slender:GetPos()+vector_up*60):ToScreen()
-		
-		if pos.x > 110 and pos.x < w-110 and pos.y > 110 and pos.y < h-110 then	
-			staticX, staticY = pos.x, pos.y
-			if not spazzplayed then
+	if addstatic > 0 then
+		local dist = closestDist
+		if not spazzplayed then
 				local toplay = nil
 				for _ = 1, #SpazzSounds do
 					local tbl = SpazzSounds[_]
@@ -666,8 +693,6 @@ function GM:HUDPaintBackground()
 				nextsoundspazz = CurTime() + 10
 			end
 		end
-		
-	end
 	
 	if GAMEMODE.CloseupTime and GAMEMODE.CloseupTime + 3 > CurTime() then
 		local l = math.Clamp((CurTime() - GAMEMODE.CloseupTime)/3, 0, 1)
