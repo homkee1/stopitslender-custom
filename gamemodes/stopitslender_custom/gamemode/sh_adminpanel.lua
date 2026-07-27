@@ -467,6 +467,68 @@ if CLIENT then
 		SLENDER_ADMINS = net.ReadTable()
 	end)
 
+	-- Функция авто-переноса длинного текста на 2 строки с троеточием на конце
+	local function wrapAndTruncateText(text, font, maxWidth, maxLines)
+		surface.SetFont(font)
+		local words = string.Explode(" ", text)
+		local lines = {}
+		local currentLine = ""
+
+		for i = 1, #words do
+			local word = words[i]
+			local testLine = currentLine == "" and word or (currentLine .. " " .. word)
+			local w, h = surface.GetTextSize(testLine)
+
+			if w <= maxWidth then
+				currentLine = testLine
+			else
+				if currentLine ~= "" then
+					table.insert(lines, currentLine)
+				end
+				currentLine = word
+			end
+		end
+		if currentLine ~= "" then
+			table.insert(lines, currentLine)
+		end
+
+		if #lines <= maxLines then
+			return table.concat(lines, "\n")
+		end
+
+		local resultLines = {}
+		for i = 1, maxLines - 1 do
+			table.insert(resultLines, lines[i])
+		end
+
+		local remainingWords = {}
+		for i = maxLines, #lines do
+			local lineWords = string.Explode(" ", lines[i])
+			for _, w in ipairs(lineWords) do
+				table.insert(remainingWords, w)
+			end
+		end
+
+		local lastLine = ""
+		for i = 1, #remainingWords do
+			local word = remainingWords[i]
+			local testLine = lastLine == "" and (word .. "...") or (lastLine .. " " .. word .. "...")
+			local w, h = surface.GetTextSize(testLine)
+			if w <= maxWidth then
+				lastLine = lastLine == "" and word or (lastLine .. " " .. word)
+			else
+				break
+			end
+		end
+		
+		if lastLine == "" then
+			lastLine = remainingWords[1] or ""
+		end
+
+		table.insert(resultLines, lastLine .. "...")
+		return table.concat(resultLines, "\n")
+	end
+
 	-- Регистрация кастомного слайдера с поддержкой сверх-лимитного ввода
 	local PANEL = {}
 	function PANEL:Init()
@@ -477,6 +539,7 @@ if CLIENT then
 		self.Label:SetWidth(250)
 		self.Label:SetFont("Tahoma_lines18")
 		self.Label:SetTextColor(SlenderUI.ColorText)
+		self.Label:SetContentAlignment(4) -- Выравнивание текста строго по центру по вертикали (Middle-Left)
 
 		self.TextEntry = vgui.Create("DTextEntry", self)
 		self.TextEntry:Dock(RIGHT)
@@ -584,7 +647,10 @@ if CLIENT then
 		self.Min = minVal
 		self.Max = maxVal
 		self.Decimals = decimals
-		self.Label:SetText(label)
+		
+		-- Форматируем текст перед выведением в лейбл панели
+		local wrapped = wrapAndTruncateText(label, "Tahoma_lines18", 250, 2)
+		self.Label:SetText(wrapped)
 		
 		local val = decimals > 0 and GetGlobalFloat(varName, minVal) or GetGlobalInt(varName, minVal)
 		self.Value = val
@@ -891,7 +957,7 @@ if CLIENT then
 			local slider = vgui.Create("SlenderNumSlider", balanceScroll)
 			slider:Dock(TOP)
 			slider:DockMargin(10, 10, 10, 10)
-			slider:SetHeight(40)
+			slider:SetHeight(45) -- Увеличиваем высоту до 45 для комфортного размещения 2-х строк текста
 			slider:SetUp(label, varName, minVal, maxVal, decimals)
 
 			slider.OnValueChanged = function(self, value)
