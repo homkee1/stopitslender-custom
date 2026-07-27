@@ -33,7 +33,6 @@ function SWEP:Initialize()
 		self.Zoom = 0
 	end
 	
-	self:SetBattery( self.MaxBattery )
 	self.NextHeal = 0
 
 end
@@ -73,11 +72,17 @@ function SWEP:GetSwitch()
 end
 
 function SWEP:SetBattery( am )
-	self:SetDTInt(0,am)
+	if IsValid(self.Owner) then
+		local maxOver = GetGlobalInt("slender_battery_limit", 100) * (GetGlobalInt("slender_battery_overcharge", 150) / 100)
+		self.Owner:SetDTInt(1, math.Clamp(am, 0, math.Round(maxOver)))
+	end
 end
 
 function SWEP:GetBattery()
-	return self:GetDTInt(0)
+	if IsValid(self.Owner) then
+		return self.Owner:GetDTInt(1)
+	end
+	return 0
 end
 
 SWEP.NextHeal = 0
@@ -88,30 +93,49 @@ function SWEP:Think()
 	local ct = CurTime()
 	
 	if SERVER then
-		if IsValid(self.Owner) and self.Owner:Health() < 45 and not self.Owner:BatteryDead() then
-			if self.Owner.NextRegen and self.Owner.NextRegen <= ct then
+		local ply = self.Owner
+		if IsValid(ply) and ply:Health() < 100 then
+			local canRegen = GetGlobalBool("slender_sanity_regen", true)
+			
+			if canRegen and GetGlobalBool("slender_sanity_regen_far", true) then
+				if not ply.NextRegen or ply.NextRegen > ct then
+					canRegen = false
+				end
+			end
+			
+			if canRegen and GetGlobalBool("slender_sanity_regen_light", true) then
+				if not self:GetSwitch() or self:GetBattery() <= 0 then
+					canRegen = false
+				end
+			end
+			
+			if canRegen then
 				if self.NextHeal and self.NextHeal <= ct then
-					self.Owner:SetHealth(math.Clamp(self.Owner:Health()+1,0,100))
-					self.NextHeal = ct + 0.5 + (0.03 * self.Owner:GetPages())
+					ply:SetHealth(math.Clamp(ply:Health() + 1, 0, 100))
+					self.NextHeal = ct + 0.5 + (0.03 * ply:GetPages())
 				end
 			end
 		end
+		local batLimit = GetGlobalInt("slender_battery_limit", 100)
+		local batDrain = GetGlobalFloat("slender_battery_drain", 1.0)
+		local batRecharge = GetGlobalFloat("slender_battery_recharge", 0.1)
+		local batLockout = GetGlobalInt("slender_battery_lockout", 6)
+
 		if self:GetBattery() > 0 and self:GetSwitch() then
 			if self.NextDrain <= ct then
 				self:SetBattery( self:GetBattery() - 1 )
-				self.NextDrain = ct + self.BatteryDrain
+				self.NextDrain = ct + batDrain
 				if self:GetBattery() == 0 then
 					self:Switch( false )
-					self.nextswitch = ct + 6
+					self.nextswitch = ct + batLockout
 					self.Owner:SendLua("surface.PlaySound(\"ambient/energy/zap6.wav\")")
 					self.Owner:SendLua("surface.PlaySound(\"ambient/energy/zap6.wav\")")
-					//self.Owner:EmitSound(batterysound,80, math.random(90,115))
 				end
 			end
 		else
-			if self.NextRecharge <= ct and self:GetBattery() < self.MaxBattery then
+			if self.NextRecharge <= ct and self:GetBattery() < batLimit then
 				self:SetBattery( self:GetBattery() + 1 )
-				self.NextRecharge = ct + self.BatteryRecharge
+				self.NextRecharge = ct + batRecharge
 			end
 		end
 	end

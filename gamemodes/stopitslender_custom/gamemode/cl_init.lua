@@ -279,7 +279,8 @@ function GM:HUDPaint()
 		
 		local target = IsValid(MySelf:GetObserverTarget()) and MySelf:GetObserverTarget():IsPlayer() and MySelf:GetObserverTarget() or MySelf
 		
-		local am = math.Clamp(target:Health()/100,0,1)
+		local batLimit = GetGlobalInt("slender_battery_limit", 100)
+		local am = math.Clamp(target:GetDTInt(1) / batLimit, 0, 1)
 		
 		if am <= 0.3 then
 			surface.SetDrawColor(Color(255,35,35,70))
@@ -293,11 +294,10 @@ function GM:HUDPaint()
 		surface.DrawOutlinedRect(batX-1,batY-1,batW+2,batH+2)
 		surface.DrawRect(batX+batW+1,batY+batH/4,6,batH/2)
 		
+		local isFlashlightDead = target:GetDTInt(1) <= 0
 		
-		local dead = target.BatteryDead and !target:IsSlenderman() and target:BatteryDead()
-		
-		if dead then
-			draw.SimpleText("BATTERY DEAD", "Tahoma_lines18",batX, batY+batH+5, Color(215,15,15,100), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
+		if isFlashlightDead then
+			draw.SimpleText("РАЗРЯЖЕН", "Tahoma_lines18",batX, batY+batH+5, Color(215,15,15,100), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
 		end
 		
 		//Rec
@@ -310,7 +310,20 @@ function GM:HUDPaint()
 		draw.SimpleText(time, "Tahoma_lines18",w-gap_x*1.5, gap_y*1.2+45, hudTextColor, TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
 		
 	end
-	//spectator thingy
+	-- Sanity HUD (Bottom Left)
+	if MySelf:Team() != TEAM_SLENDER then
+		local ToWatch = IsValid(MySelf:GetObserverTarget()) and MySelf:GetObserverTarget():IsPlayer() and MySelf:GetObserverTarget() or MySelf
+		local sanityVal = ToWatch:Health()
+		local sanityColor = Color(225, 225, 225, 95)
+		if sanityVal <= 30 then
+			sanityColor = Color(215, 15, 15, 95 + math.sin(RealTime() * 10) * 40)
+		end
+
+		draw.SimpleText(tostring(sanityVal) .. "%", "Tahoma_lines50", gap_x * 1.5, h - gap_y * 2.8, sanityColor, TEXT_ALIGN_LEFT, TEXT_ALIGN_BOTTOM)
+		draw.SimpleText("РАССУДОК", "Tahoma_lines18", gap_x * 1.5, h - gap_y * 2.8 + 5, sanityColor, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+	end
+
+	-- Spectator spectator mode limits
 	if IsValid(MySelf:GetObserverTarget()) then
 	
 		local name = MySelf:GetObserverTarget().Nick and MySelf:GetObserverTarget():Nick() or MySelf:GetObserverTarget().PrintName or "NONE"

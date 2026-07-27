@@ -25,6 +25,29 @@ if meta then
 end
 
 if SERVER then
+	-- Инициализация глобальных переменных баланса людей по умолчанию
+	SetGlobalInt("slender_walk_speed", 125)
+	SetGlobalInt("slender_sprint_speed", 190)
+	SetGlobalFloat("slender_stamina_drain", 10)
+	SetGlobalFloat("slender_stamina_regen", 1)
+	SetGlobalInt("slender_exhausted_time", 10)
+	SetGlobalInt("slender_jump_power", 160)
+
+	-- Новые переменные регенерации рассудка и эффектов страниц (День 3 - Переработка)
+	SetGlobalBool("slender_sanity_regen", true)
+	SetGlobalBool("slender_sanity_regen_far", true)
+	SetGlobalBool("slender_sanity_regen_light", true)
+	SetGlobalInt("slender_page_restore_sanity", 15)
+	SetGlobalInt("slender_page_restore_battery", 30)
+
+	-- Дополнительные переменные батареи и паники (День 3 - Расширение)
+	SetGlobalInt("slender_battery_limit", 100)
+	SetGlobalFloat("slender_battery_drain", 1.0)
+	SetGlobalFloat("slender_battery_recharge", 0.1)
+	SetGlobalInt("slender_battery_lockout", 6)
+	SetGlobalInt("slender_battery_overcharge", 150)
+	SetGlobalFloat("slender_sanity_speed_coeff", 0.5)
+
 	util.AddNetworkString("SlenderAdminSync")
 
 	SLENDER_ADMINS = SLENDER_ADMINS or {}
@@ -101,6 +124,61 @@ if SERVER then
 
 			SaveAdmins()
 			SyncAdmins()
+		elseif cmd == "update_balance_var" then
+			local varName = net.ReadString()
+			local varVal = net.ReadFloat()
+
+			local allowed = {
+				slender_walk_speed = true,
+				slender_sprint_speed = true,
+				slender_stamina_drain = true,
+				slender_stamina_regen = true,
+				slender_exhausted_time = true,
+				slender_jump_power = true,
+				slender_page_restore_sanity = true,
+				slender_page_restore_battery = true,
+				slender_battery_limit = true,
+				slender_battery_drain = true,
+				slender_battery_recharge = true,
+				slender_battery_lockout = true,
+				slender_battery_overcharge = true,
+				slender_sanity_speed_coeff = true
+			}
+
+			if allowed[varName] then
+				if varName == "slender_stamina_drain" or varName == "slender_stamina_regen" or varName == "slender_battery_drain" or varName == "slender_battery_recharge" or varName == "slender_sanity_speed_coeff" then
+					SetGlobalFloat(varName, varVal)
+				else
+					SetGlobalInt(varName, math.Round(varVal))
+				end
+
+				-- Мгновенно применяем скорость и высоту прыжка для всех живых людей на сервере
+				if varName == "slender_jump_power" or varName == "slender_walk_speed" or varName == "slender_sprint_speed" then
+					for _, p in ipairs(player.GetAll()) do
+						if IsValid(p) and p:Alive() and p:Team() == TEAM_HUMENS then
+							p:SetWalkSpeed(GetGlobalInt("slender_walk_speed", 125))
+							p:SetRunSpeed(GetGlobalInt("slender_sprint_speed", 190))
+							p:SetJumpPower(GetGlobalInt("slender_jump_power", 160))
+						end
+					end
+				end
+
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " изменил параметр " .. varName .. " на " .. varVal .. ".")
+			end
+		elseif cmd == "update_balance_bool" then
+			local varName = net.ReadString()
+			local varVal = net.ReadBool()
+
+			local allowed = {
+				slender_sanity_regen = true,
+				slender_sanity_regen_far = true,
+				slender_sanity_regen_light = true
+			}
+
+			if allowed[varName] then
+				SetGlobalBool(varName, varVal)
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " изменил параметр " .. varName .. " на " .. (varVal and "ВКЛ" or "ВЫКЛ") .. ".")
+			end
 		elseif cmd == "restart_round" or cmd == "force_victory_humans" or cmd == "force_victory_slender" then
 			if cmd == "restart_round" then
 				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " перезапустил раунд.")
@@ -501,6 +579,101 @@ if CLIENT then
 		end
 
 		sheet:AddSheet("Игроки", playersPanel, "icon16/group.png")
+
+		-- Вкладка настроек баланса людей (День 3)
+		local balancePanel = vgui.Create("DPanel", sheet)
+		balancePanel.Paint = function(self, w, h)
+			draw.RoundedBox(0, 0, 0, w, h, Color(20, 20, 20, 255))
+		end
+
+		local balanceScroll = vgui.Create("DScrollPanel", balancePanel)
+		balanceScroll:Dock(FILL)
+		balanceScroll:DockMargin(10, 10, 10, 10)
+
+		local function CreateSliderSetting(label, varName, minVal, maxVal, decimals)
+			local sLabel = vgui.Create("DLabel", balanceScroll)
+			sLabel:SetText(label)
+			sLabel:SetFont("Tahoma_lines18")
+			sLabel:SetTextColor(SlenderUI.ColorText)
+			sLabel:Dock(TOP)
+			sLabel:DockMargin(10, 10, 10, 2)
+
+			local slider = vgui.Create("DNumSlider", balanceScroll)
+			slider:Dock(TOP)
+			slider:DockMargin(10, 0, 10, 10)
+			slider:SetMin(minVal)
+			slider:SetMax(maxVal)
+			slider:SetDecimals(decimals)
+			slider:SetValue(decimals > 0 and GetGlobalFloat(varName, minVal) or GetGlobalInt(varName, minVal))
+			
+			-- Стилизация текстовых элементов и лейблов слайдера
+			slider.Label:SetTextColor(SlenderUI.ColorTextMuted)
+			slider.Label:SetFont("Tahoma_lines18")
+			slider.TextArea:SetTextColor(SlenderUI.ColorText)
+			slider.TextArea:SetFont("Tahoma_lines18")
+			slider.TextArea:SetDrawBackground(true)
+
+			slider.OnValueChanged = function(self, value)
+				-- Ограничиваем флуд сетевыми запросами при перетаскивании ползунка
+				self.NextUpdate = self.NextUpdate or 0
+				if self.NextUpdate < RealTime() then
+					net.Start("SlenderAdminCommand")
+						net.WriteString("update_balance_var")
+						net.WriteString(varName)
+						net.WriteFloat(value)
+					net.SendToServer()
+					self.NextUpdate = RealTime() + 0.1
+				end
+			end
+		end
+
+		local function CreateCheckboxSetting(label, varName)
+			local panel = vgui.Create("DPanel", balanceScroll)
+			panel:Dock(TOP)
+			panel:DockMargin(10, 5, 10, 5)
+			panel:SetHeight(30)
+			panel.Paint = function(self, w, h) end
+
+			local chk = vgui.Create("DCheckBoxLabel", panel)
+			chk:Dock(FILL)
+			chk:SetText(label)
+			chk:SetFont("Tahoma_lines18")
+			chk:SetTextColor(SlenderUI.ColorText)
+			chk:SetValue(GetGlobalBool(varName, true))
+			
+			chk.OnChange = function(self, val)
+				net.Start("SlenderAdminCommand")
+					net.WriteString("update_balance_bool")
+					net.WriteString(varName)
+					net.WriteBool(val)
+				net.SendToServer()
+			end
+		end
+
+		CreateSliderSetting("Скорость обычной ходьбы выживших", "slender_walk_speed", 50, 300, 0)
+		CreateSliderSetting("Скорость бега со спринтом", "slender_sprint_speed", 100, 400, 0)
+		CreateSliderSetting("Высота прыжка выживших", "slender_jump_power", 50, 400, 0)
+		CreateSliderSetting("Скорость траты выносливости (ед. в секунду)", "slender_stamina_drain", 1, 50, 1)
+		CreateSliderSetting("Скорость регенерации выносливости (ед. в секунду)", "slender_stamina_regen", 0.1, 10, 2)
+		CreateSliderSetting("Длительность штрафа истощения (секунд)", "slender_exhausted_time", 1, 30, 0)
+
+		-- Переключатели регенерации и награды страниц (День 3 - Переработка)
+		CreateCheckboxSetting("Разрешить пассивную регенерацию рассудка", "slender_sanity_regen")
+		CreateCheckboxSetting("Регенерировать рассудок ТОЛЬКО вдали от Слендера", "slender_sanity_regen_far")
+		CreateCheckboxSetting("Регенерировать рассудок ТОЛЬКО при включенном фонарике", "slender_sanity_regen_light")
+
+		CreateSliderSetting("Восстановление рассудка (здоровья) при поднятии страницы", "slender_page_restore_sanity", 0, 100, 0)
+		CreateSliderSetting("Заряд фонарика камеры (%) при поднятии страницы", "slender_page_restore_battery", 0, 100, 0)
+
+		-- Тонкие настройки фонарика и паники (День 3 - Расширение)
+		CreateSliderSetting("Максимальный заряд батареи фонарика", "slender_battery_limit", 50, 200, 0)
+		CreateSliderSetting("Скорость разряда фонарика (сек. на 1%)", "slender_battery_drain", 0.1, 5, 1)
+		CreateSliderSetting("Скорость зарядки фонарика (сек. на 1%)", "slender_battery_recharge", 0.01, 1, 2)
+		CreateSliderSetting("Время блокировки при полном разряде (сек.)", "slender_battery_lockout", 1, 20, 0)
+		CreateSliderSetting("Лимит оверчарджа (перезарядки) батареи (%)", "slender_battery_overcharge", 100, 200, 0)
+		CreateSliderSetting("Влияние адреналина/паники на скорость (-1..1)", "slender_sanity_speed_coeff", -1, 1, 2)
+
+		sheet:AddSheet("Баланс", balancePanel, "icon16/wrench.png")
 
 		-- Фоновое автообновление списка игроков каждые 3 секунды для отображения изменений
 		timer.Create("SlenderAdminPlayerListRefresh", 3, 0, function()

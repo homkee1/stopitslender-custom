@@ -78,7 +78,14 @@ if SERVER then
 			
 			activator:AddPage()
 			
-			activator:BreakBattery( -13 )
+			-- Награды за поднятие страницы (День 3 - Переработка)
+			local sanityReward = GetGlobalInt("slender_page_restore_sanity", 15)
+			local batteryReward = GetGlobalInt("slender_page_restore_battery", 30)
+
+			activator:SetHealth(math.Clamp(activator:Health() + sanityReward, 0, 100))
+
+			local maxOver = GetGlobalInt("slender_battery_limit", 100) * (GetGlobalInt("slender_battery_overcharge", 150) / 100)
+			activator:SetDTInt(1, math.Clamp(activator:GetDTInt(1) + batteryReward, 0, math.Round(maxOver)))
 			
 			if not FIRST_PAGE then
 				FIRST_PAGE = true

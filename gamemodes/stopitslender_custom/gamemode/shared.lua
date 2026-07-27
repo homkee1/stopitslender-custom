@@ -145,18 +145,51 @@ hook.Add("SetupMove", "Slender_Stamina", function(ply, mv, cmd)
 	local isMoving = bit.band(mv:GetButtons(), IN_FORWARD + IN_BACK + IN_MOVELEFT + IN_MOVERIGHT) != 0
 	local isSprinting = mv:KeyDown(IN_SPEED) and isMoving and ply:OnGround() and not ply:Crouching()
 
-	if isSprinting and not isExhausted and ply.Stamina > 0 then
-		ply.Stamina = math.Clamp(ply.Stamina - FrameTime() * 10, 0, 100)
-		if ply.Stamina <= 0 then
-			ply.ExhaustedTime = CurTime() + 10
+	-- Отслеживание изменения рассудка за последние 10 секунд (День 3 - Скорость от паники)
+	ply.NextSanityRecord = ply.NextSanityRecord or 0
+	ply.SanityHistory = ply.SanityHistory or {}
+
+	local ct = CurTime()
+	if ply.NextSanityRecord < ct then
+		table.insert(ply.SanityHistory, {time = ct, hp = ply:Health()})
+		ply.NextSanityRecord = ct + 1
+
+		-- Очищаем записи старше 10 секунд
+		for i = #ply.SanityHistory, 1, -1 do
+			if ply.SanityHistory[i].time < ct - 10 then
+				table.remove(ply.SanityHistory, i)
+			end
 		end
-		mv:SetMaxSpeed(190)
-		mv:SetMaxClientSpeed(190)
+	end
+
+	-- Находим самое старое значение за 10-секундный период
+	local oldSanity = 100
+	if #ply.SanityHistory > 0 then
+		oldSanity = ply.SanityHistory[1].hp
+	end
+
+	local lostSanity = math.Clamp(oldSanity - ply:Health(), 0, 100)
+	local coeff = GetGlobalFloat("slender_sanity_speed_coeff", 0.5)
+	local speedMult = 1 + coeff * (lostSanity / 100)
+
+	local walkSpeed = math.Round(GetGlobalInt("slender_walk_speed", 125) * speedMult)
+	local sprintSpeed = math.Round(GetGlobalInt("slender_sprint_speed", 190) * speedMult)
+	local staminaDrain = GetGlobalFloat("slender_stamina_drain", 10)
+	local staminaRegen = GetGlobalFloat("slender_stamina_regen", 1)
+	local exhaustedTime = GetGlobalInt("slender_exhausted_time", 10)
+
+	if isSprinting and not isExhausted and ply.Stamina > 0 then
+		ply.Stamina = math.Clamp(ply.Stamina - FrameTime() * staminaDrain, 0, 100)
+		if ply.Stamina <= 0 then
+			ply.ExhaustedTime = CurTime() + exhaustedTime
+		end
+		mv:SetMaxSpeed(sprintSpeed)
+		mv:SetMaxClientSpeed(sprintSpeed)
 	else
-		ply.Stamina = math.Clamp(ply.Stamina + FrameTime() * 1, 0, 100)
+		ply.Stamina = math.Clamp(ply.Stamina + FrameTime() * staminaRegen, 0, 100)
 		if mv:KeyDown(IN_SPEED) then
-			mv:SetMaxSpeed(125)
-			mv:SetMaxClientSpeed(125)
+			mv:SetMaxSpeed(walkSpeed)
+			mv:SetMaxClientSpeed(walkSpeed)
 		end
 	end
 

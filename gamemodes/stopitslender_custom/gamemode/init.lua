@@ -522,15 +522,15 @@ function GM:PlayerSpawn( pl )
 
 		pl:UnSpectate()
 
-		pl:SetWalkSpeed(125)
-		pl:SetRunSpeed(190)
+		pl:SetWalkSpeed(GetGlobalInt("slender_walk_speed", 125))
+		pl:SetRunSpeed(GetGlobalInt("slender_sprint_speed", 190))
 		
 		pl.Stamina = 100
 		pl.ExhaustedTime = 0
 		pl:SetNWFloat("Stamina", 100)
 		pl:SetNWBool("Exhausted", false)
 		
-		pl:SetJumpPower(160)
+		pl:SetJumpPower(GetGlobalInt("slender_jump_power", 160))
 			
 		pl:SetHealth( 100 )
 		pl:SetMaxHealth( 100 )

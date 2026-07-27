@@ -26,11 +26,13 @@ function meta:GetPages()
 end
 
 function meta:SetupBattery()
-	self:SetDTInt( 1, BATTERY_LIMIT )
+	self:SetDTInt( 1, GetGlobalInt("slender_battery_limit", 100) )
 end
 
 function meta:BreakBattery( am )
-	self:SetDTInt( 1, math.Clamp( self:GetDTInt(1) - am, 0,BATTERY_LIMIT * 2 ))
+	local limit = GetGlobalInt("slender_battery_limit", 100)
+	local overcharge_pct = GetGlobalInt("slender_battery_overcharge", 150) / 100
+	self:SetDTInt( 1, math.Clamp( self:GetDTInt(1) - am, 0, math.Round(limit * overcharge_pct) ))
 end
 
 function meta:BatteryDead()
