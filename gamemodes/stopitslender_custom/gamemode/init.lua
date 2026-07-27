@@ -36,7 +36,7 @@ cvars.AddChangeCallback("slender_versusmode", function(cvar, oldvalue, newvalue)
 	GAMEMODE.VersusMode = util.tobool( newvalue )
 end)
 
-// resource.AddWorkshop( "171728689" ) //I know it's silly, but just in case
+-- resource.AddWorkshop( "171728689" ) //I know it's silly, but just in case
 resource.AddWorkshop( "142020889" ) //slender_forest
 resource.AddWorkshop( "172051449" ) //segments
 resource.AddWorkshop( "179792391" ) //mansion v3
