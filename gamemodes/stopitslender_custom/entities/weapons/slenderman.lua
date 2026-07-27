@@ -1,4 +1,4 @@
-AddCSLuaFile()
+﻿AddCSLuaFile()
 
 SWEP.Author			= "NECROSSIN"
 

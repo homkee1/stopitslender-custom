@@ -1,4 +1,4 @@
-include( 'shared.lua' )
+﻿include( 'shared.lua' )
 
 surface.CreateFont( "Tahoma_lines50", { font = "Tahoma", size = 50, weight = 500, scanlines = 3, antialias = true} )
 surface.CreateFont( "Tahoma_lines30", { font = "Tahoma", size = 30, weight = 700, scanlines = 3, antialias = true} )

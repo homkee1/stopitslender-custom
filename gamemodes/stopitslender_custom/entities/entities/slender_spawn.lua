@@ -1,1 +1,1 @@
-ENT.Type = "point"
+﻿ENT.Type = "point"

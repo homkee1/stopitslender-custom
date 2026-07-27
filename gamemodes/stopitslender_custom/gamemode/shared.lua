@@ -1,4 +1,4 @@
-//Stop, it Slender! by NECROSSIN
+﻿//Stop, it Slender! by NECROSSIN
 //Originally made to mess around with some friends
 
 include("obj_player_extend.lua")

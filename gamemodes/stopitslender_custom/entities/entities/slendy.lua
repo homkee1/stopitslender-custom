@@ -1,4 +1,4 @@
-if SERVER then
+﻿if SERVER then
 	AddCSLuaFile()
 	
 	resource.AddFile("materials/filmgrain.vmt")

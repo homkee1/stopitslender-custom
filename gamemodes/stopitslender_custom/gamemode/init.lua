@@ -1,4 +1,4 @@
-AddCSLuaFile("shared.lua")
+﻿AddCSLuaFile("shared.lua")
 AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("obj_player_extend.lua")
 

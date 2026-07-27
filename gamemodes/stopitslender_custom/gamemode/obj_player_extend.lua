@@ -1,4 +1,4 @@
-local meta = FindMetaTable( "Player" )
+﻿local meta = FindMetaTable( "Player" )
 if (!meta) then return end
 
 function meta:IsSlenderman()
