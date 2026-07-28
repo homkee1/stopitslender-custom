@@ -71,40 +71,86 @@ function ENT:Think()
 		self.AttackDistance = GetGlobalInt("slender_bot_attack_dist", 650)
 		self.DamageDistance = GetGlobalInt("slender_bot_damage_dist", 650)
 
-		-- Пока нет записок, боты подвержены гравитации и падают вниз
-		if not FIRST_PAGE then
-			if self:GetMoveType() ~= MOVETYPE_FLYGRAVITY then
-				self:SetMoveType( MOVETYPE_FLYGRAVITY )
+		-- ПРЯМОЕ УПРАВЛЕНИЕ БОТОМ (Possession)
+		if IsValid(self.Possessor) then
+			local ply = self.Possessor
+			
+			-- Расчет векторов передвижения относительно взгляда администратора
+			local forward = ply:EyeAngles():Forward()
+			forward.z = 0
+			forward:Normalize()
+			
+			local right = ply:EyeAngles():Right()
+			right.z = 0
+			right:Normalize()
+			
+			local moveVec = Vector(0, 0, 0)
+			if ply:KeyDown(IN_FORWARD) then moveVec = moveVec + forward end
+			if ply:KeyDown(IN_BACK) then moveVec = moveVec - forward end
+			if ply:KeyDown(IN_MOVERIGHT) then moveVec = moveVec + right end
+			if ply:KeyDown(IN_MOVELEFT) then moveVec = moveVec - right end
+			
+			if moveVec:LengthSqr() > 0 then
+				moveVec:Normalize()
+				-- Движение бота вперед/вбок со скоростью 120 юнитов в секунду
+				self:SetPos(self:GetPos() + moveVec * 120 * FrameTime())
+				
+				-- Воспроизведение анимации ходьбы
+				if self:GetSequence() ~= self:LookupSequence("walk_all_moderate") then
+					self:SetSequence(self:LookupSequence("walk_all_moderate"))
+				end
+			else
+				-- Анимация покоя при остановке
+				if self:GetSequence() ~= self:LookupSequence("idle_subtle") then
+					self:SetSequence(self:LookupSequence("idle_subtle"))
+				end
 			end
-		else
-			if self:GetMoveType() ~= MOVETYPE_STEP then
-				self:SetMoveType( MOVETYPE_STEP )
-				self:SetLocalVelocity( vector_origin ) -- сбрасываем скорость падения при переходе в режим телепортов
-			end
+			
+			-- Плавный поворот бота в сторону взгляда администратора
+			self:SetAngles(Angle(0, ply:EyeAngles().y, 0))
+
+			self:NextThink(ct)
+			return true
 		end
 
-		local botFreq = GetGlobalFloat("slender_bot_teleport_freq", 1.35)
-		self.NextTeleport = self.NextTeleport or ct + botFreq
-		
-		if self.NextTeleport < ct then
+		-- ПРОВЕРКА НА ЗАМОРОЗКУ ИИ АДМИНИСТРАТОРОМ
+		local isFrozen = self:GetNWBool("SlenderAIFrozen", false)
+		if not isFrozen then
+			-- Пока нет записок, боты подвержены гравитации и падают вниз
+			if not FIRST_PAGE then
+				if self:GetMoveType() ~= MOVETYPE_FLYGRAVITY then
+					self:SetMoveType( MOVETYPE_FLYGRAVITY )
+				end
+			else
+				if self:GetMoveType() ~= MOVETYPE_STEP then
+					self:SetMoveType( MOVETYPE_STEP )
+					self:SetLocalVelocity( vector_origin ) -- сбрасываем скорость падения при переходе в режим телепортов
+				end
+			end
+
+			local botFreq = GetGlobalFloat("slender_bot_teleport_freq", 1.35)
+			self.NextTeleport = self.NextTeleport or ct + botFreq
 			
-			self:Teleport()
+			if self.NextTeleport < ct then
+				self:Teleport()
+				self.NextTeleport = ct + botFreq
+				self:SetSequence( self:LookupSequence("idle_subtle") )
+				self:SetCycle(0)
+			end
 			
-			self.NextTeleport = ct + botFreq
+			self.NextAttack = self.NextAttack or ct + 0.5
 			
-			self:SetSequence( self:LookupSequence("idle_subtle") )
-			self:SetCycle(0)
+			if self.NextAttack < ct then
+				self:Attack()
+				self.NextAttack = ct + 0.1
+			end
+		else
+			-- Сбрасываем скорость, если ИИ заморожен администратором
+			self:SetLocalVelocity(vector_origin)
+			if self:GetSequence() ~= self:LookupSequence("idle_subtle") then
+				self:SetSequence(self:LookupSequence("idle_subtle"))
+			end
 		end
-		
-		self.NextAttack = self.NextAttack or ct + 0.5
-		
-		if self.NextAttack < ct then
-			
-			self:Attack()
-			
-			self.NextAttack = ct + 0.1
-		end
-	
 	end
 	
 	self:NextThink(CurTime())
@@ -276,6 +322,11 @@ end
 end
 
 function ENT:GetClosest()
+	-- Если администратор принудительно зафиксировал цель ИИ
+	if IsValid(self.TargetLock) and self.TargetLock:IsPlayer() and self.TargetLock:Alive() and self.TargetLock:Team() == TEAM_HUMENS then
+		return self.TargetLock
+	end
+
 	local Closest = 999999999
 	local dist = 0
 	local Ent = nil

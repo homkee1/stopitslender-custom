@@ -263,6 +263,55 @@ function GM:HUDPaint()
 	
 	draw.NoTexture()
 	
+	-- ИНТЕРФЕЙС ПРИ ПРЯМОМ УПРАВЛЕНИИ БОТОМ (Один в один как у настоящего Слендера)
+	if MySelf:GetNWBool("PossessingBot", false) then
+		local bot = MySelf:GetNWEntity("PossessedBot")
+		if IsValid(bot) then
+			-- 1. Синхронизация красного админского прожектора из глаз
+			local light = Entity(0):GetDTEntity(3)
+			if light and IsValid(light) then
+				light:SetOwner(MySelf)
+				light:SetPos(EyePos())
+				light:SetAngles(EyeAngles())
+			end
+
+			-- 2. Отрисовка записок над головами живых людей
+			for _, v in ipairs(team.GetPlayers(TEAM_HUMENS)) do
+				if IsValid(v) and v:Alive() then
+					local pos = v:GetShootPos():ToScreen()
+					local pages = v:GetPages() or 0
+					local maxPages = v:GetMaxPages() or 8
+					draw.SimpleText(pages .. "/" .. maxPages, "Tahoma_lines23", pos.x, pos.y, Color(215, 215, 215, 250), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+				end
+			end
+
+			-- 3. Расчет видимости бота выжившими
+			local visible = not bot:GetNWBool("SlenderCloaked", false)
+			local seen = false
+			local botPos = bot:GetPos()
+			for _, v in ipairs(team.GetPlayers(TEAM_HUMENS)) do
+				if IsValid(v) and v:Alive() then
+					local dist = v:GetPos():Distance(botPos)
+					if dist <= 650 and v:SyncAngles():Forward():Dot((v:GetPos() - botPos):GetNormal()) < -0.3 and TrueVisible(v:EyePos(), bot:NearestPoint(v:EyePos()), v) then
+						seen = true
+						break
+					end
+				end
+			end
+
+			seen = seen and visible
+
+			-- 4. Отрисовка элементов HUD настоящего Слендера
+			draw.SimpleText(seen and "Someone sees you!" or "Noone sees you", "Tahoma_lines30", 50, h - 170, seen and Color(15, 215, 15, 100) or Color(215, 15, 15, 100), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			draw.SimpleText("X", "Tahoma_lines130", 50, h - 100, visible and Color(15, 215, 15, 100) or Color(215, 15, 15, 100), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			
+			draw.SimpleText((seen and "(Blocked) " or "") .. "RMB - Toggle invisibility", "Tahoma_lines30", w - 50, h - 170, visible and Color(15, 215, 15, 100) or Color(215, 15, 15, 100), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+			draw.SimpleText("LMB - Attack wyzhivshih", "Tahoma_lines30", w - 50, h - 90, Color(15, 215, 15, 100), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+			draw.SimpleText("Press [R] to exit Possession", "Tahoma_lines30", w / 2, h - 50, Color(215, 15, 15, 150), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		end
+		return
+	end
+	
 	if MySelf:Team() ~= TEAM_SLENDER then
 	
 		surface.SetDrawColor(hudColor)
@@ -335,16 +384,17 @@ function GM:HUDPaint()
 		draw.SimpleText("Pages "..pages.."/"..maxPages, "Tahoma_lines18",w-gap_x*1.5, h-gap_y*1.3, hudTextColor, TEXT_ALIGN_RIGHT,TEXT_ALIGN_BOTTOM)
 		
 	else
-		if MySelf:Team() == TEAM_SPECTATOR then
+		if MySelf:Team() == TEAM_SPECTATOR or MySelf:GetNWBool("SlenderFreecam", false) then
 			local dlight = DynamicLight( MySelf:EntIndex() )
 			if ( dlight ) then
 				dlight.Pos = EyePos()+EyeAngles():Forward()*30
 				dlight.r = 255
 				dlight.g = 255
 				dlight.b = 255
-				dlight.Brightness = 3
-				dlight.Size = 370
-				dlight.Decay = 370 * 5
+				local isFree = MySelf:GetNWBool("SlenderFreecam", false)
+				dlight.Brightness = isFree and 5 or 3
+				dlight.Size = isFree and 850 or 370
+				dlight.Decay = dlight.Size * 5
 				dlight.DieTime = CurTime() + 1
 				dlight.Style = 0
 			end
@@ -921,7 +971,7 @@ hook.Add("Think","SlenderFog",function()
 	local ply = LocalPlayer()
 	if not IsValid(ply) or not ply:IsPlayer() or not ply.IsSlenderman then return end
 	
-	if ply:IsSlenderman() then
+	if ply:IsSlenderman() or ply:GetNWBool("PossessingBot", false) then
 		if drawnight then
 			hook.Remove( "SetupWorldFog","AddNightFog" )
 			hook.Remove( "SetupSkyboxFog","AddNightFogSkybox" )
@@ -953,7 +1003,12 @@ local mat = Material( "models/shiny" )
 local vector_down = vector_up * -1
 
 function GM:PrePlayerDraw(pl)
-	
+	-- Если игрок находится во вселении, фиксируем рендер-угол его модели в мире
+	if pl:GetNWBool("PossessingBot", false) then
+		local origAng = pl:GetNWAngle("PossessOrigAng", angle_zero)
+		pl:SetRenderAngles(Angle(0, origAng.y, 0))
+	end
+
 	local ply = LocalPlayer()
 	if IsValid(ply) and ply:IsPlayer() and ply.IsSlenderman and ply:IsSlenderman() and pl:Team() == TEAM_HUMENS then
 		colormodulation = true
@@ -987,6 +1042,22 @@ end
 
 
 function GM:CalcView( pl, origin, angles, fov, znear, zfar )
+	
+	-- Если администратор вселился в бота, транслируем камеру от лица бота сзади (Chase Camera)
+	local bot = pl:GetNWEntity("PossessedBot")
+	if IsValid(bot) and pl:GetNWBool("PossessingBot", false) then
+		local targetPos = bot:GetPos() + Vector(0, 0, 72)
+		local camPos = targetPos - angles:Forward() * 150
+		
+		-- Предотвращаем прохождение камеры сквозь стены
+		local tr = util.TraceLine({
+			start = targetPos,
+			endpos = camPos,
+			filter = {pl, bot}
+		})
+		
+		return {origin = tr.HitPos + tr.HitNormal * 4, angles = angles, drawviewer = true}
+	end
 	
 	if pl:Team() == TEAM_HUMENS and pl:Alive() then
 		

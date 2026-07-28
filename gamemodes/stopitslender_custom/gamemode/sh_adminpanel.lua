@@ -396,7 +396,7 @@ if SERVER then
 			ent:Spawn()
 			ent:Activate()
 			PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " заспавнил бота Слендермена.")
-		elseif cmd == "player_kill" or cmd == "player_respawn" or cmd == "player_slender" or cmd == "player_spec" or cmd == "player_heal" or cmd == "player_battery" or cmd == "player_addpage" or cmd == "player_removepage" or cmd == "player_freeze" or cmd == "player_godmode" or cmd == "player_tp_to" or cmd == "player_tp_me" or cmd == "player_mute" or cmd == "player_gag" or cmd == "player_kick" or cmd == "player_ban" then
+		elseif cmd == "player_kill" or cmd == "player_respawn" or cmd == "player_slender" or cmd == "player_spec" or cmd == "player_heal" or cmd == "player_battery" or cmd == "player_addpage" or cmd == "player_removepage" or cmd == "player_freeze" or cmd == "player_godmode" or cmd == "player_tp_to" or cmd == "player_tp_me" or cmd == "player_mute" or cmd == "player_gag" or cmd == "player_kick" or cmd == "player_ban" or cmd == "player_freecam" or cmd == "player_toggle_cloak" or cmd == "player_bot_tp_crosshair" or cmd == "player_bot_freeze" or cmd == "player_bot_target_lock" or cmd == "player_bot_spectate" or cmd == "player_bot_possess" then
 			local target = net.ReadEntity()
 			if not IsValid(target) or (not target:IsPlayer() and target:GetClass() ~= "slendy") then return end
 
@@ -528,7 +528,79 @@ if SERVER then
 				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " забанил игрока " .. target:Nick() .. " на " .. timeStr .. " (" .. reason .. ").")
 				target:Ban(mins, reason)
 				target:Kick("Забанен администратором на " .. timeStr .. ". Причина: " .. reason)
-			end
+			elseif cmd == "player_freecam" and target:IsPlayer() then
+				local isFree = not target:GetNWBool("SlenderFreecam", false)
+				target:SetNWBool("SlenderFreecam", isFree)
+				
+				-- Автоматическая полная скрытность при полете, чтобы не мешать игрокам
+				target:SetNWBool("SlenderCloaked", isFree)
+				target:SetNoDraw(isFree)
+				target:DrawShadow(not isFree)
+				for _, wep in ipairs(target:GetWeapons()) do
+					if IsValid(wep) then wep:SetNoDraw(isFree) end
+				end
+				
+				if isFree then
+					target:SetMoveType(MOVETYPE_NOCLIP)
+				else
+					target:SetMoveType(target:Team() == TEAM_SPECTATOR and MOVETYPE_OBSERVER or MOVETYPE_WALK)
+				end
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " " .. (isFree and "включил" or "выключил") .. " режим свободной камеры для " .. target:Nick() .. ".")
+			elseif cmd == "player_toggle_cloak" then
+				local isCloaked = not target:GetNWBool("SlenderCloaked", false)
+				target:SetNWBool("SlenderCloaked", isCloaked)
+				target:SetNoDraw(isCloaked)
+				target:DrawShadow(not isCloaked) -- Отключаем тень, чтобы она не выдавала невидимку
+				
+				-- Полностью скрываем всё оружие в инвентаре игрока, если он невидим
+				if target:IsPlayer() then
+					for _, wep in ipairs(target:GetWeapons()) do
+						if IsValid(wep) then wep:SetNoDraw(isCloaked) end
+					end
+				end
+				
+				local targetName = target:IsPlayer() and target:Nick() or ("Бот Слендер #" .. target:EntIndex())
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " " .. (isCloaked and "скрыл модель" or "показал модель") .. " для " .. targetName .. ".")
+			elseif cmd == "player_bot_tp_crosshair" and target:GetClass() == "slendy" then
+				local tr = ply:GetEyeTrace()
+				if tr.Hit then
+					target:SetPos(tr.HitPos + Vector(0, 0, 10))
+					PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " переместил бота Слендермена к своей точке взгляда.")
+				end
+			elseif cmd == "player_bot_freeze" and target:GetClass() == "slendy" then
+				local isAIFrozen = not target:GetNWBool("SlenderAIFrozen", false)
+				target:SetNWBool("SlenderAIFrozen", isAIFrozen)
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " " .. (isAIFrozen and "заморозил ИИ" or "разморозил ИИ") .. " бота Слендермена #" .. target:EntIndex() .. ".")
+			elseif cmd == "player_bot_target_lock" and target:GetClass() == "slendy" then
+				local lockTarget = net.ReadEntity()
+				if IsValid(lockTarget) and lockTarget:IsPlayer() then
+					target.TargetLock = lockTarget
+					PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " принудительно сфокусировал бота Слендермена на игроке " .. lockTarget:Nick() .. ".")
+				else
+					target.TargetLock = nil
+					PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " сбросил фокус цели у бота Слендермена.")
+				end
+			elseif cmd == "player_bot_spectate" and target:GetClass() == "slendy" then
+				ply:Spectate(OBS_MODE_CHASE)
+				ply:SpectateEntity(target)
+				ply:ChatPrint("[Slender] Вы наблюдаете за ботом Слендерменом. Нажмите ЛКМ/Пробел для выхода.")
+			elseif cmd == "player_bot_possess" and target:GetClass() == "slendy" then
+					if target.Possessor == ply then
+						target.Possessor = nil
+						target:SetNWBool("SlenderAIFrozen", false)
+						ply:SetNWBool("PossessingBot", false)
+						ply:SetNWEntity("PossessedBot", NULL)
+						ply:SetNWAngle("PossessOrigAng", angle_zero)
+						PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " вышел из режима управления ботом.")
+					else
+						target.Possessor = ply
+						target:SetNWBool("SlenderAIFrozen", true)
+						ply:SetNWBool("PossessingBot", true)
+						ply:SetNWEntity("PossessedBot", target)
+						ply:SetNWAngle("PossessOrigAng", ply:EyeAngles()) -- Запоминаем оригинальное направление тела админа
+						PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " взял прямое управление над ботом Слендерменом.")
+					end
+				end
 		end
 	end)
 end
@@ -1044,7 +1116,7 @@ if CLIENT then
 				elseif p:Team() == TEAM_SLENDER then tName = "Слендер" end
 
 				local bat = p:Team() == TEAM_HUMENS and p:GetDTInt(1) or "N/A"
-				local pages = p:Team() == TEAM_HUMENS and p:GetPages() or "N/A"
+				local pages = p:Team() == TEAM_HUMENS and (p:GetPages() .. "/" .. (p:GetMaxPages() or 8)) or "N/A"
 				local ping = p:Ping()
 
 				local line = playerList:AddLine(p:Nick(), tName, p:Alive() and p:Health() or "Мертв", bat, pages, ping)
@@ -1082,9 +1154,8 @@ if CLIENT then
 		local actionButtons = {}
 		local selectedPlayer = nil
 
-		local function CreatePlayerActionButton(text, cmd)
-			local btn = vgui.Create("DButton", actionScroll)
-			btn:SetText(text)
+		-- Базовая функция стилизации кнопок
+		local function StyleActionButton(btn)
 			btn:SetTextColor(SlenderUI.ColorText)
 			btn:SetFont("Tahoma_lines18")
 			btn:Dock(TOP)
@@ -1102,41 +1173,122 @@ if CLIENT then
 					self:SetTextColor(SlenderUI.ColorText)
 				end
 			end
-			btn.DoClick = function()
-				if IsValid(selectedPlayer) then
-					net.Start("SlenderAdminCommand")
-						net.WriteString(cmd)
-						net.WriteEntity(selectedPlayer)
-					net.SendToServer()
-
-					timer.Simple(0.1, UpdatePlayerList)
-				end
-			end
-			table.insert(actionButtons, btn)
-			return btn
 		end
 
-		CreatePlayerActionButton("Убить", "player_kill")
-		CreatePlayerActionButton("Возродить за людей", "player_respawn")
-		CreatePlayerActionButton("Сделать Слендером", "player_slender")
-		CreatePlayerActionButton("Перевести в зрители", "player_spec")
+		-- 1. Кнопка «Убить / Уничтожить» (Универсальная)
+		local btnKill = vgui.Create("DButton", actionScroll)
+		btnKill:SetText("Убить")
+		StyleActionButton(btnKill)
+		btnKill.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_kill")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnKill)
 
-		-- Заморозка
-		local freezeBtn = vgui.Create("DButton", actionScroll)
-		freezeBtn:SetText("Заморозить")
-		freezeBtn:SetTextColor(SlenderUI.ColorText)
-		freezeBtn:SetFont("Tahoma_lines18")
-		freezeBtn:Dock(TOP)
-		freezeBtn:DockMargin(10, 4, 10, 4)
-		freezeBtn:SetHeight(32)
-		freezeBtn:SetEnabled(false)
-		freezeBtn.Paint = actionButtons[1].Paint
-		freezeBtn.Think = function(self)
+		-- 2. Кнопка «Свободная камера» (Универсальная для игроков)
+		local btnFreecam = vgui.Create("DButton", actionScroll)
+		btnFreecam:SetText("Свободная камера")
+		StyleActionButton(btnFreecam)
+		btnFreecam.Think = function(self)
+			if IsValid(selectedPlayer) and selectedPlayer:IsPlayer() then
+				self:SetText(selectedPlayer:GetNWBool("SlenderFreecam", false) and "Выкл. Свободную камеру" or "Вкл. Свободную камеру")
+			end
+		end
+		btnFreecam.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_freecam")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnFreecam)
+
+		-- 3. Кнопка «Скрыть модель (Cloak)» (Универсальная для всех, кроме зрителей)
+		local btnCloak = vgui.Create("DButton", actionScroll)
+		btnCloak:SetText("Скрыть модель (Cloak)")
+		StyleActionButton(btnCloak)
+		btnCloak.Think = function(self)
+			if IsValid(selectedPlayer) then
+				self:SetText(selectedPlayer:GetNWBool("SlenderCloaked", false) and "Показать модель" or "Скрыть модель (Cloak)")
+			end
+		end
+		btnCloak.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_toggle_cloak")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnCloak)
+
+		-- 4. Кнопка «Возродить за выживших»
+		local btnRespawn = vgui.Create("DButton", actionScroll)
+		btnRespawn:SetText("Возродить за людей")
+		StyleActionButton(btnRespawn)
+		btnRespawn.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_respawn")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnRespawn)
+
+		-- 5. Кнопка «Сделать Слендером / Выжившим» (Динамическая команда на основе роли цели)
+		local btnForceSlender = vgui.Create("DButton", actionScroll)
+		btnForceSlender:SetText("Сделать Слендером")
+		StyleActionButton(btnForceSlender)
+		btnForceSlender.DoClick = function()
+			if IsValid(selectedPlayer) then
+				local cmd = "player_slender"
+				if selectedPlayer:IsPlayer() and selectedPlayer:Team() == TEAM_SLENDER then
+					cmd = "player_respawn" -- Если цель уже Слендер, возвращаем в выжившие через Respawn
+				end
+				net.Start("SlenderAdminCommand")
+					net.WriteString(cmd)
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnForceSlender)
+
+		-- 6. Кнопка «Перевести в зрители»
+		local btnForceSpec = vgui.Create("DButton", actionScroll)
+		btnForceSpec:SetText("Перевести в зрители")
+		StyleActionButton(btnForceSpec)
+		btnForceSpec.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_spec")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnForceSpec)
+
+		-- 7. Кнопка «Заморозить»
+		local btnFreeze = vgui.Create("DButton", actionScroll)
+		btnFreeze:SetText("Заморозить")
+		StyleActionButton(btnFreeze)
+		btnFreeze.Think = function(self)
 			if IsValid(selectedPlayer) and selectedPlayer:IsPlayer() then
 				self:SetText(selectedPlayer:GetNWBool("SlenderFrozen", false) and "Разморозить" or "Заморозить")
 			end
 		end
-		freezeBtn.DoClick = function()
+		btnFreeze.DoClick = function()
 			if IsValid(selectedPlayer) then
 				net.Start("SlenderAdminCommand")
 					net.WriteString("player_freeze")
@@ -1145,27 +1297,48 @@ if CLIENT then
 				timer.Simple(0.1, UpdatePlayerList)
 			end
 		end
-		table.insert(actionButtons, freezeBtn)
+		table.insert(actionButtons, btnFreeze)
 
-		CreatePlayerActionButton("Вылечить", "player_heal")
-		CreatePlayerActionButton("Зарядить батарею", "player_battery")
+		-- 8. Кнопка «Вылечить»
+		local btnHeal = vgui.Create("DButton", actionScroll)
+		btnHeal:SetText("Вылечить")
+		StyleActionButton(btnHeal)
+		btnHeal.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_heal")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnHeal)
 
-		-- Бессмертие (Godmode)
-		local godBtn = vgui.Create("DButton", actionScroll)
-		godBtn:SetText("Включить бессмертие")
-		godBtn:SetTextColor(SlenderUI.ColorText)
-		godBtn:SetFont("Tahoma_lines18")
-		godBtn:Dock(TOP)
-		godBtn:DockMargin(10, 4, 10, 4)
-		godBtn:SetHeight(32)
-		godBtn:SetEnabled(false)
-		godBtn.Paint = actionButtons[1].Paint
-		godBtn.Think = function(self)
+		-- 9. Кнопка «Зарядить батарею»
+		local btnBattery = vgui.Create("DButton", actionScroll)
+		btnBattery:SetText("Зарядить батарею")
+		StyleActionButton(btnBattery)
+		btnBattery.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_battery")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnBattery)
+
+		-- 10. Кнопка «Бессмертие (Godmode)»
+		local btnGod = vgui.Create("DButton", actionScroll)
+		btnGod:SetText("Включить бессмертие")
+		StyleActionButton(btnGod)
+		btnGod.Think = function(self)
 			if IsValid(selectedPlayer) and selectedPlayer:IsPlayer() then
 				self:SetText(selectedPlayer:GetNWBool("SlenderGodMode", false) and "Выкл. бессмертие" or "Вкл. бессмертие")
 			end
 		end
-		godBtn.DoClick = function()
+		btnGod.DoClick = function()
 			if IsValid(selectedPlayer) then
 				net.Start("SlenderAdminCommand")
 					net.WriteString("player_godmode")
@@ -1174,29 +1347,45 @@ if CLIENT then
 				timer.Simple(0.1, UpdatePlayerList)
 			end
 		end
-		table.insert(actionButtons, godBtn)
+		table.insert(actionButtons, btnGod)
 
-		-- Телепортация игрока к админу
-		CreatePlayerActionButton("ТП игрока к себе", "player_tp_to")
-		-- Телепортация админа к игроку
-		CreatePlayerActionButton("ТП к игроку", "player_tp_me")
+		-- 11. Телепортационные кнопки
+		local btnTpTo = vgui.Create("DButton", actionScroll)
+		btnTpTo:SetText("ТП игрока к себе")
+		StyleActionButton(btnTpTo)
+		btnTpTo.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_tp_to")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+			end
+		end
+		table.insert(actionButtons, btnTpTo)
 
-		-- Глобальный мут голоса
-		local muteBtn = vgui.Create("DButton", actionScroll)
-		muteBtn:SetText("Заглушить (Голос)")
-		muteBtn:SetTextColor(SlenderUI.ColorText)
-		muteBtn:SetFont("Tahoma_lines18")
-		muteBtn:Dock(TOP)
-		muteBtn:DockMargin(10, 4, 10, 4)
-		muteBtn:SetHeight(32)
-		muteBtn:SetEnabled(false)
-		muteBtn.Paint = actionButtons[1].Paint
-		muteBtn.Think = function(self)
+		local btnTpMe = vgui.Create("DButton", actionScroll)
+		btnTpMe:SetText("ТП к игроку")
+		StyleActionButton(btnTpMe)
+		btnTpMe.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_tp_me")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+			end
+		end
+		table.insert(actionButtons, btnTpMe)
+
+		-- 12. Глобальный мут голоса
+		local btnMute = vgui.Create("DButton", actionScroll)
+		btnMute:SetText("Заглушить (Голос)")
+		StyleActionButton(btnMute)
+		btnMute.Think = function(self)
 			if IsValid(selectedPlayer) and selectedPlayer:IsPlayer() then
 				self:SetText(selectedPlayer:GetNWBool("SlenderMuted", false) and "Разглушить (Голос)" or "Заглушить (Голос)")
 			end
 		end
-		muteBtn.DoClick = function()
+		btnMute.DoClick = function()
 			if IsValid(selectedPlayer) then
 				net.Start("SlenderAdminCommand")
 					net.WriteString("player_mute")
@@ -1205,24 +1394,18 @@ if CLIENT then
 				timer.Simple(0.1, UpdatePlayerList)
 			end
 		end
-		table.insert(actionButtons, muteBtn)
+		table.insert(actionButtons, btnMute)
 
-		-- Глобальный гаг чата
-		local gagBtn = vgui.Create("DButton", actionScroll)
-		gagBtn:SetText("Дать гаг (Чат)")
-		gagBtn:SetTextColor(SlenderUI.ColorText)
-		gagBtn:SetFont("Tahoma_lines18")
-		gagBtn:Dock(TOP)
-		gagBtn:DockMargin(10, 4, 10, 4)
-		gagBtn:SetHeight(32)
-		gagBtn:SetEnabled(false)
-		gagBtn.Paint = actionButtons[1].Paint
-		gagBtn.Think = function(self)
+		-- 13. Глобальный гаг чата
+		local btnGag = vgui.Create("DButton", actionScroll)
+		btnGag:SetText("Дать гаг (Чат)")
+		StyleActionButton(btnGag)
+		btnGag.Think = function(self)
 			if IsValid(selectedPlayer) and selectedPlayer:IsPlayer() then
 				self:SetText(selectedPlayer:GetNWBool("SlenderGagged", false) and "Снять гаг (Чат)" or "Дать гаг (Чат)")
 			end
 		end
-		gagBtn.DoClick = function()
+		btnGag.DoClick = function()
 			if IsValid(selectedPlayer) then
 				net.Start("SlenderAdminCommand")
 					net.WriteString("player_gag")
@@ -1231,19 +1414,13 @@ if CLIENT then
 				timer.Simple(0.1, UpdatePlayerList)
 			end
 		end
-		table.insert(actionButtons, gagBtn)
+		table.insert(actionButtons, btnGag)
 
-		-- Кик игрока
-		local kickBtn = vgui.Create("DButton", actionScroll)
-		kickBtn:SetText("Кикнуть")
-		kickBtn:SetTextColor(SlenderUI.ColorText)
-		kickBtn:SetFont("Tahoma_lines18")
-		kickBtn:Dock(TOP)
-		kickBtn:DockMargin(10, 4, 10, 4)
-		kickBtn:SetHeight(32)
-		kickBtn:SetEnabled(false)
-		kickBtn.Paint = actionButtons[1].Paint
-		kickBtn.DoClick = function()
+		-- 14. Модерация: Кик
+		local btnKick = vgui.Create("DButton", actionScroll)
+		btnKick:SetText("Кикнуть")
+		StyleActionButton(btnKick)
+		btnKick.DoClick = function()
 			if IsValid(selectedPlayer) then
 				Derma_StringRequest("Кик игрока " .. selectedPlayer:Nick(), "Введите причину кика:", "", function(reason)
 					if not IsValid(selectedPlayer) then return end
@@ -1256,19 +1433,13 @@ if CLIENT then
 				end)
 			end
 		end
-		table.insert(actionButtons, kickBtn)
+		table.insert(actionButtons, btnKick)
 
-		-- Бан игрока
-		local banBtn = vgui.Create("DButton", actionScroll)
-		banBtn:SetText("Забанить")
-		banBtn:SetTextColor(SlenderUI.ColorText)
-		banBtn:SetFont("Tahoma_lines18")
-		banBtn:Dock(TOP)
-		banBtn:DockMargin(10, 4, 10, 4)
-		banBtn:SetHeight(32)
-		banBtn:SetEnabled(false)
-		banBtn.Paint = actionButtons[1].Paint
-		banBtn.DoClick = function()
+		-- 15. Модерация: Бан
+		local btnBan = vgui.Create("DButton", actionScroll)
+		btnBan:SetText("Забанить")
+		StyleActionButton(btnBan)
+		btnBan.DoClick = function()
 			if IsValid(selectedPlayer) then
 				Derma_StringRequest("Бан игрока " .. selectedPlayer:Nick(), "Введите срок бана (в минутах, 0 - навсегда):", "60", function(timeStr)
 					local mins = tonumber(timeStr) or 60
@@ -1285,11 +1456,136 @@ if CLIENT then
 				end)
 			end
 		end
-		table.insert(actionButtons, banBtn)
+		table.insert(actionButtons, btnBan)
 
-		CreatePlayerActionButton("Добавить собр. записку (+1)", "player_addpage")
-		CreatePlayerActionButton("Забрать собр. записку (-1)", "player_removepage")
+		-- 16. Лимиты страниц для выживших
+		local btnPageAdd = vgui.Create("DButton", actionScroll)
+		btnPageAdd:SetText("Добавить собр. записку (+1)")
+		StyleActionButton(btnPageAdd)
+		btnPageAdd.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_addpage")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnPageAdd)
 
+		local btnPageSub = vgui.Create("DButton", actionScroll)
+		btnPageSub:SetText("Забрать собр. записку (-1)")
+		StyleActionButton(btnPageSub)
+		btnPageSub.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_removepage")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnPageSub)
+
+		-- 17. Кнопки ИИ бота Слендера
+		local btnBotTp = vgui.Create("DButton", actionScroll)
+		btnBotTp:SetText("ТП бота к прицелу")
+		StyleActionButton(btnBotTp)
+		btnBotTp.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_bot_tp_crosshair")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+			end
+		end
+		table.insert(actionButtons, btnBotTp)
+
+		local btnBotFreeze = vgui.Create("DButton", actionScroll)
+		btnBotFreeze:SetText("Заморозить ИИ бота")
+		StyleActionButton(btnBotFreeze)
+		btnBotFreeze.Think = function(self)
+			if IsValid(selectedPlayer) and selectedPlayer:GetClass() == "slendy" then
+				self:SetText(selectedPlayer:GetNWBool("SlenderAIFrozen", false) and "Разморозить ИИ бота" or "Заморозить ИИ бота")
+			end
+		end
+		btnBotFreeze.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_bot_freeze")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, btnBotFreeze)
+
+		local btnBotTarget = vgui.Create("DButton", actionScroll)
+		btnBotTarget:SetText("Захват цели")
+		StyleActionButton(btnBotTarget)
+		btnBotTarget.DoClick = function()
+			if IsValid(selectedPlayer) then
+				local menu = DermaMenu()
+				for _, p in ipairs(player.GetAll()) do
+					if p:Team() == TEAM_HUMENS and p:Alive() then
+						menu:AddOption(p:Nick(), function()
+							if not IsValid(selectedPlayer) then return end
+							net.Start("SlenderAdminCommand")
+								net.WriteString("player_bot_target_lock")
+								net.WriteEntity(selectedPlayer)
+								net.WriteEntity(p)
+							net.SendToServer()
+						end)
+					end
+				end
+				menu:AddOption("Сбросить захват цели", function()
+					if not IsValid(selectedPlayer) then return end
+					net.Start("SlenderAdminCommand")
+						net.WriteString("player_bot_target_lock")
+						net.WriteEntity(selectedPlayer)
+						net.WriteEntity(NULL)
+					net.SendToServer()
+				end)
+				menu:Open()
+			end
+		end
+		table.insert(actionButtons, btnBotTarget)
+
+		local btnBotSpec = vgui.Create("DButton", actionScroll)
+		btnBotSpec:SetText("Наблюдать за ботом")
+		StyleActionButton(btnBotSpec)
+		btnBotSpec.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_bot_spectate")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				SlenderUI.Frame:Close() -- Сворачиваем панель для перехода в режим слежения
+			end
+		end
+		table.insert(actionButtons, btnBotSpec)
+
+		local btnBotPossess = vgui.Create("DButton", actionScroll)
+		btnBotPossess:SetText("Прямое управление")
+		StyleActionButton(btnBotPossess)
+		btnBotPossess.Think = function(self)
+			if IsValid(selectedPlayer) and selectedPlayer:GetClass() == "slendy" then
+				local possessed = selectedPlayer.Possessor == LocalPlayer() or LocalPlayer():GetNWBool("PossessingBot", false)
+				self:SetText(possessed and "Выйти из управления" or "Прямое управление")
+			end
+		end
+		btnBotPossess.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_bot_possess")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				SlenderUI.Frame:Close() -- Сворачиваем панель
+			end
+		end
+		table.insert(actionButtons, btnBotPossess)
+
+		-- Кнопка глобального спавна бота Слендера на карте
 		local spawnBotBtn = vgui.Create("DButton", actionScroll)
 		spawnBotBtn:SetText("Заспавнить бота")
 		spawnBotBtn:SetTextColor(SlenderUI.ColorText)
@@ -1304,17 +1600,181 @@ if CLIENT then
 			net.SendToServer()
 		end
 
+		-- Основной обработчик адаптивного интерфейса при выборе строки (Строго по чек-листу)
 		playerList.OnRowSelected = function(panel, rowIndex, row)
 			selectedPlayer = row.PlayerEntity
-			local isBot = IsValid(selectedPlayer) and selectedPlayer:GetClass() == "slendy"
+			if not IsValid(selectedPlayer) then return end
+
+			local isBot = selectedPlayer:GetClass() == "slendy"
+			
+			-- Дефолтно скрываем и выключаем все кнопки
 			for _, btn in ipairs(actionButtons) do
-				if isBot then
-					-- Для ботов разрешена только кнопка "Убить"
-					btn:SetEnabled(btn:GetText() == "Убить")
-				else
-					btn:SetEnabled(IsValid(selectedPlayer))
+				btn:SetVisible(false)
+				btn:SetEnabled(false)
+			end
+
+			if isBot then
+				-- Состояние 4: Выбран Бот-Слендер (ИИ)
+				btnKill:SetText("Уничтожить бота")
+				btnKill:SetVisible(true)
+				btnKill:SetEnabled(true)
+
+				btnCloak:SetVisible(true)
+				btnCloak:SetEnabled(true)
+
+				btnBotTp:SetVisible(true)
+				btnBotTp:SetEnabled(true)
+
+				btnBotFreeze:SetVisible(true)
+				btnBotFreeze:SetEnabled(true)
+
+				btnBotTarget:SetVisible(true)
+				btnBotTarget:SetEnabled(true)
+
+				btnBotSpec:SetVisible(true)
+				btnBotSpec:SetEnabled(true)
+
+				btnBotPossess:SetVisible(true)
+				btnBotPossess:SetEnabled(true)
+			else
+				local teamID = selectedPlayer:Team()
+
+				if teamID == TEAM_HUMENS then
+					-- Состояние 1: Выбран Выживший (TEAM_HUMENS)
+					btnKill:SetText("Убить")
+					btnKill:SetVisible(true)
+					btnKill:SetEnabled(true)
+
+					btnFreecam:SetVisible(true)
+					btnFreecam:SetEnabled(true)
+
+					btnCloak:SetVisible(true)
+					btnCloak:SetEnabled(true)
+
+					btnForceSlender:SetText("Сделать Слендером")
+					btnForceSlender:SetVisible(true)
+					btnForceSlender:SetEnabled(true)
+
+					btnForceSpec:SetVisible(true)
+					btnForceSpec:SetEnabled(true)
+
+					btnFreeze:SetVisible(true)
+					btnFreeze:SetEnabled(true)
+
+					btnHeal:SetVisible(true)
+					btnHeal:SetEnabled(true)
+
+					btnBattery:SetVisible(true)
+					btnBattery:SetEnabled(true)
+
+					btnGod:SetVisible(true)
+					btnGod:SetEnabled(true)
+
+					btnTpTo:SetVisible(true)
+					btnTpTo:SetEnabled(true)
+
+					btnTpMe:SetText("ТП к игроку")
+					btnTpMe:SetVisible(true)
+					btnTpMe:SetEnabled(true)
+
+					btnMute:SetVisible(true)
+					btnMute:SetEnabled(true)
+
+					btnGag:SetVisible(true)
+					btnGag:SetEnabled(true)
+
+					btnKick:SetVisible(true)
+					btnKick:SetEnabled(true)
+
+					btnBan:SetVisible(true)
+					btnBan:SetEnabled(true)
+
+					btnPageAdd:SetVisible(true)
+					btnPageAdd:SetEnabled(true)
+
+					btnPageSub:SetVisible(true)
+					btnPageSub:SetEnabled(true)
+
+				elseif teamID == TEAM_SLENDER then
+					-- Состояние 2: Выбран Игрок-Слендер (TEAM_SLENDER)
+					btnKill:SetText("Убить")
+					btnKill:SetVisible(true)
+					btnKill:SetEnabled(true)
+
+					btnFreecam:SetVisible(true)
+					btnFreecam:SetEnabled(true)
+
+					btnCloak:SetVisible(true)
+					btnCloak:SetEnabled(true)
+
+					btnForceSlender:SetText("Сделать выжившим")
+					btnForceSlender:SetVisible(true)
+					btnForceSlender:SetEnabled(true)
+
+					btnForceSpec:SetVisible(true)
+					btnForceSpec:SetEnabled(true)
+
+					btnFreeze:SetVisible(true)
+					btnFreeze:SetEnabled(true)
+
+					btnHeal:SetVisible(true)
+					btnHeal:SetEnabled(true)
+
+					btnGod:SetVisible(true)
+					btnGod:SetEnabled(true)
+
+					btnTpTo:SetVisible(true)
+					btnTpTo:SetEnabled(true)
+
+					btnTpMe:SetText("ТП к игроку")
+					btnTpMe:SetVisible(true)
+					btnTpMe:SetEnabled(true)
+
+					btnMute:SetVisible(true)
+					btnMute:SetEnabled(true)
+
+					btnGag:SetVisible(true)
+					btnGag:SetEnabled(true)
+
+					btnKick:SetVisible(true)
+					btnKick:SetEnabled(true)
+
+					btnBan:SetVisible(true)
+					btnBan:SetEnabled(true)
+
+				elseif teamID == TEAM_SPECTATOR then
+					-- Состояние 3: Выбран Зритель (TEAM_SPECTATOR)
+					-- Скрыты по чек-листу: Убить, Заморозить, Вылечить, Зарядить, Godmode, ТП к себе, Записки, Невидимость
+					btnFreecam:SetVisible(true)
+					btnFreecam:SetEnabled(true)
+
+					btnRespawn:SetVisible(true)
+					btnRespawn:SetEnabled(true)
+
+					btnForceSlender:SetText("Сделать Слендером")
+					btnForceSlender:SetVisible(true)
+					btnForceSlender:SetEnabled(true)
+
+					btnTpMe:SetText("ТП к зрителю") -- Кастомный текст перемещения для наблюдателей
+					btnTpMe:SetVisible(true)
+					btnTpMe:SetEnabled(true)
+
+					btnMute:SetVisible(true)
+					btnMute:SetEnabled(true)
+
+					btnGag:SetVisible(true)
+					btnGag:SetEnabled(true)
+
+					btnKick:SetVisible(true)
+					btnKick:SetEnabled(true)
+
+					btnBan:SetVisible(true)
+					btnBan:SetEnabled(true)
 				end
 			end
+
+			-- Перерисовываем элементы скролла после изменения видимости кнопок
+			actionScroll:InvalidateLayout(true)
 		end
 
 		sheet:AddSheet("Игроки", playersPanel, "icon16/group.png")

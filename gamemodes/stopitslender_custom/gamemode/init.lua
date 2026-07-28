@@ -886,7 +886,33 @@ end)
 
 -- Хук для предотвращения любого урона бессмертным игрокам (Godmode)
 hook.Add("PlayerShouldTakeDamage", "Slender_Admin_GodMode", function(ply, attacker)
-	if ply:GetNWBool("SlenderGodMode", false) then
+	if ply:GetNWBool("SlenderGodMode", false) or ply:GetNWBool("SlenderFreecam", false) then
 		return false
+	end
+end)
+
+-- Хук для скрытия вновь взятого в руки оружия у невидимого администратора
+hook.Add("PlayerSwitchWeapon", "Slender_Cloak_Weapon", function(ply, oldWep, newWep)
+	if ply:GetNWBool("SlenderCloaked", false) then
+		if IsValid(newWep) then
+			newWep:SetNoDraw(true)
+		end
+	end
+end)
+
+-- Хук для выхода из режима прямого управления ботом по клавише перезарядки (R)
+hook.Add("KeyPress", "Slender_Possess_Exit", function(ply, key)
+	if ply:GetNWBool("PossessingBot", false) and key == IN_RELOAD then
+		for _, b in ipairs(ents.FindByClass("slendy")) do
+			if b.Possessor == ply then
+				b.Possessor = nil
+				b:SetNWBool("SlenderAIFrozen", false)
+				ply:SetNWBool("PossessingBot", false)
+				ply:SetNWEntity("PossessedBot", NULL)
+				ply:SetNWAngle("PossessOrigAng", angle_zero)
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " вышел из режима управления ботом по клавише [R].")
+				break
+			end
+		end
 	end
 end)

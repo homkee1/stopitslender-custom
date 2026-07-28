@@ -39,6 +39,9 @@ end
 
 SWEP.nextswitch = 0
 function SWEP:PrimaryAttack()
+	-- Полностью блокируем переключение фонарика и звуки во время управления Слендером
+	if IsValid(self.Owner) and self.Owner:GetNWBool("PossessingBot", false) then return end
+
 	if self.nextswitch >= CurTime() then return end
 	self.nextswitch = CurTime() + 0.1
 	
@@ -90,6 +93,7 @@ SWEP.NextDrain = 0
 SWEP.NextRecharge = 0
 function SWEP:Think()
 	if GetGlobalBool("slender_round_paused", false) then return end
+	if IsValid(self.Owner) and self.Owner:GetNWBool("PossessingBot", false) then return end
 
 	local ct = CurTime()
 	
@@ -155,7 +159,8 @@ end
 
 local vecfake = Vector(0, 0, 16000)
 function SWEP:DrawHUD()//DrawHUD
-	
+	-- Отключаем отрисовку и обновление прожекторов выжившего при вселении
+	if IsValid(self.Owner) and self.Owner:GetNWBool("PossessingBot", false) then return end
 	
 	local light = Entity(0):GetDTEntity(0)
 	local light_small = Entity(0):GetDTEntity(1)

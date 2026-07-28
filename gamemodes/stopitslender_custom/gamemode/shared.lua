@@ -82,7 +82,17 @@ hook.Add("CalcMainActivity","Slenderman_Animations",function(pl,vel)
 end)
 
 hook.Add("UpdateAnimation","Slenderman_UpdateAnimations",function(pl, velocity, maxseqgroundspeed)
-	
+	-- Принудительно отключаем вращение головы и костей тела при вселении
+	if pl:GetNWBool("PossessingBot", false) then
+		pl:SetPoseParameter("head_yaw", 0)
+		pl:SetPoseParameter("head_pitch", 0)
+		pl:SetPoseParameter("aim_yaw", 0)
+		pl:SetPoseParameter("aim_pitch", 0)
+		pl:SetPoseParameter("body_yaw", 0)
+		pl:SetCycle(0)
+		return true
+	end
+
 	if pl:IsSlenderman() then
 		if velocity:Length2D() < 1 then
 			pl:SetCycle(0)
@@ -136,6 +146,16 @@ end
 
 hook.Add("SetupMove", "Slender_Stamina", function(ply, mv, cmd)
 	if GetGlobalBool("slender_round_paused", false) then return end
+	
+	-- Полностью замораживаем физическое тело администратора во время управления ботом
+	if ply:GetNWBool("PossessingBot", false) then
+		mv:SetMaxSpeed(0)
+		mv:SetMaxClientSpeed(0)
+		mv:SetVelocity(vector_origin)
+		return
+	end
+	
+	if ply:GetNWBool("SlenderFreecam", false) then return end -- Игнорируем лимиты скорости и стамины в свободной камере
 	if ply:Team() != TEAM_HUMENS or not ply:Alive() then return end
 
 	ply.Stamina = ply.Stamina or 100
@@ -197,5 +217,42 @@ hook.Add("SetupMove", "Slender_Stamina", function(ply, mv, cmd)
 	if SERVER then
 		ply:SetNWFloat("Stamina", ply.Stamina)
 		ply:SetNWBool("Exhausted", ply.ExhaustedTime > CurTime())
+	end
+end)
+
+-- Хук управления ботом и полной блокировки прыжков/оружия физического тела админа
+hook.Add("StartCommand", "Slender_Possess_Controller", function(ply, ucmd)
+	if ply:GetNWBool("PossessingBot", false) then
+		if SERVER then
+			local bot = ply:GetNWEntity("PossessedBot")
+			if IsValid(bot) then
+				-- Обработка ЛКМ (Принудительная атака бота с задержкой в 0.6 сек.)
+				if ucmd:KeyDown(IN_ATTACK) then
+					bot.NextPossessAttack = bot.NextPossessAttack or 0
+					if bot.NextPossessAttack < CurTime() then
+						bot:Attack()
+						bot.NextPossessAttack = CurTime() + 0.6
+					end
+				end
+				-- Обработка ПКМ (Переключение скрытности бота с задержкой в 0.5 сек.)
+				if ucmd:KeyDown(IN_ATTACK2) then
+					bot.NextPossessInvis = bot.NextPossessInvis or 0
+					if bot.NextPossessInvis < CurTime() then
+						local isCloaked = not bot:GetNWBool("SlenderCloaked", false)
+						bot:SetNWBool("SlenderCloaked", isCloaked)
+						bot:SetNoDraw(isCloaked)
+						bot:DrawShadow(not isCloaked)
+						bot.NextPossessInvis = CurTime() + 0.5
+					end
+				end
+			end
+		end
+
+		-- Вырезаем прыжки и огонь оружия у тела админа на клиенте и сервере
+		local buttons = ucmd:GetButtons()
+		buttons = bit.band(buttons, bit.bnot(IN_JUMP))
+		buttons = bit.band(buttons, bit.bnot(IN_ATTACK))
+		buttons = bit.band(buttons, bit.bnot(IN_ATTACK2))
+		ucmd:SetButtons(buttons)
 	end
 end)
