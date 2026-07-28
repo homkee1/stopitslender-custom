@@ -55,6 +55,13 @@ end
 
 
 function ENT:Think()
+	if GetGlobalBool("slender_round_paused", false) then
+		if SERVER then
+			self:SetLocalVelocity(vector_origin)
+		end
+		self:NextThink(CurTime() + 0.1)
+		return true
+	end
 
 	local ct = CurTime()
 	

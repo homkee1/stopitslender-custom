@@ -135,6 +135,7 @@ function GM:PlayerStepSoundTime( ply, iType, bWalking )
 end
 
 hook.Add("SetupMove", "Slender_Stamina", function(ply, mv, cmd)
+	if GetGlobalBool("slender_round_paused", false) then return end
 	if ply:Team() != TEAM_HUMENS or not ply:Alive() then return end
 
 	ply.Stamina = ply.Stamina or 100

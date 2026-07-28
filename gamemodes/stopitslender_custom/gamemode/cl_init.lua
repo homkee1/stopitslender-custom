@@ -300,12 +300,12 @@ function GM:HUDPaint()
 			draw.SimpleText("РАЗРЯЖЕН", "Tahoma_lines18",batX, batY+batH+5, Color(215,15,15,100), TEXT_ALIGN_LEFT,TEXT_ALIGN_TOP)
 		end
 		
-		//Rec
+		-- Rec
 		local txt = MySelf:Alive() and "REC" or "PLAY"
 		local red = MySelf:Alive() and 215 or 15
 		local green = MySelf:Alive() and 15 or 215
 		
-		local time = string.FormattedTime(CurTime() - starttime, "%02i:%02i:%02i")
+		local time = string.FormattedTime(CurTime() - GetGlobalFloat("slender_round_start_time", CurTime()), "%02i:%02i:%02i")
 		draw.SimpleText(txt, "Tahoma_lines50",w-gap_x*1.5+((MySelf:Alive() and 0) or 4), gap_y*1.2, Color(red,green,15,100*math.Round(math.Clamp(math.sin(RealTime()*3.5)*2,0,1))), TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
 		draw.SimpleText(time, "Tahoma_lines18",w-gap_x*1.5, gap_y*1.2+45, hudTextColor, TEXT_ALIGN_RIGHT,TEXT_ALIGN_TOP)
 		

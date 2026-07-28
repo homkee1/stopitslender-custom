@@ -53,6 +53,10 @@ if SERVER then
 	SetGlobalBool("slender_afk_enabled", true)
 	SetGlobalBool("slender_config_use", true)
 	SetGlobalBool("slender_config_autosave", false)
+	SetGlobalBool("slender_round_paused", false)
+	SetGlobalBool("slender_versusmode", true)
+	SetGlobalBool("slender_includemaps", true)
+	SetGlobalFloat("slender_round_start_time", CurTime())
 
 	-- Глобальные переменные баланса Слендермена (Бот и Игрок)
 	SetGlobalInt("slender_bot_teleport_step", 90)
@@ -84,6 +88,8 @@ if SERVER then
 		slender_afk_enabled = true,
 		slender_config_use = true,
 		slender_config_autosave = false,
+		slender_versusmode = true,
+		slender_includemaps = true,
 		slender_bot_teleport_step = 90,
 		slender_bot_teleport_freq = 1.35,
 		slender_bot_stuck_dist = 60,
@@ -333,7 +339,9 @@ if SERVER then
 				slender_sanity_regen_far = true,
 				slender_sanity_regen_light = true,
 				slender_rtv_enabled = true,
-				slender_afk_enabled = true
+				slender_afk_enabled = true,
+				slender_versusmode = true,
+				slender_includemaps = true
 			}
 
 			if allowed[varName] then
@@ -345,7 +353,7 @@ if SERVER then
 					SaveSlenderConfig()
 				end
 			end
-		elseif cmd == "restart_round" or cmd == "force_victory_humans" or cmd == "force_victory_slender" then
+		elseif cmd == "restart_round" or cmd == "force_victory_humans" or cmd == "force_victory_slender" or cmd == "toggle_pause" then
 			if cmd == "restart_round" then
 				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " перезапустил раунд.")
 				GAMEMODE:RestartRound()
@@ -357,14 +365,38 @@ if SERVER then
 				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " объявил победу Слендермена! Перезапуск раунда...")
 				ENDROUND = true
 				timer.Simple(5, function() if ENDROUND then GAMEMODE:RestartRound() end end)
+			elseif cmd == "toggle_pause" then
+				local is_paused = not GetGlobalBool("slender_round_paused", false)
+				SetGlobalBool("slender_round_paused", is_paused)
+				for _, p in ipairs(player.GetAll()) do
+					if IsValid(p) then
+						p:Freeze(is_paused)
+					end
+				end
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " " .. (is_paused and "ПОСТАВИЛ РАУНД НА ПАУЗУ" or "СНЯЛ РАУНД С ПАУЗЫ") .. "!")
 			end
+		elseif cmd == "change_level" then
+			local mapName = net.ReadString()
+			if mapName and mapName ~= "" then
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " меняет карту на " .. mapName .. "...")
+				timer.Simple(2, function()
+					game.ConsoleCommand("changelevel " .. mapName .. "\n")
+				end)
+			end
+		elseif cmd == "force_rtv" then
+			if VOTING then
+				ply:ChatPrint("[Slender] Голосование уже запущено!")
+				return
+			end
+			PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " принудительно запустил RTV голосование!")
+			GAMEMODE:StartVoting(VOTING_TIME)
 		elseif cmd == "spawn_bot" then
 			local ent = ents.Create("slendy")
 			ent:SetPos(GAMEMODE:GetSlendermanSpawn() or vector_origin)
 			ent:Spawn()
 			ent:Activate()
 			PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " заспавнил бота Слендермена.")
-		elseif cmd == "player_kill" or cmd == "player_respawn" or cmd == "player_slender" or cmd == "player_spec" or cmd == "player_heal" or cmd == "player_battery" or cmd == "player_addpage" or cmd == "player_removepage" then
+		elseif cmd == "player_kill" or cmd == "player_respawn" or cmd == "player_slender" or cmd == "player_spec" or cmd == "player_heal" or cmd == "player_battery" or cmd == "player_addpage" or cmd == "player_removepage" or cmd == "player_freeze" or cmd == "player_godmode" or cmd == "player_tp_to" or cmd == "player_tp_me" or cmd == "player_mute" or cmd == "player_gag" or cmd == "player_kick" or cmd == "player_ban" then
 			local target = net.ReadEntity()
 			if not IsValid(target) or (not target:IsPlayer() and target:GetClass() ~= "slendy") then return end
 
@@ -455,6 +487,47 @@ if SERVER then
 					
 					PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " забрал собранную записку у игрока " .. target:Nick() .. " (" .. target:GetPages() .. "/" .. (target:GetMaxPages() or 8) .. ").")
 				end
+			elseif cmd == "player_freeze" and target:IsPlayer() then
+				local isFrozen = not target:GetNWBool("SlenderFrozen", false)
+				target:SetNWBool("SlenderFrozen", isFrozen)
+				target:Freeze(isFrozen)
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " " .. (isFrozen and "заморозил" or "разморозил") .. " игрока " .. target:Nick() .. ".")
+			elseif cmd == "player_godmode" and target:IsPlayer() then
+				local isGod = not target:GetNWBool("SlenderGodMode", false)
+				target:SetNWBool("SlenderGodMode", isGod)
+				if isGod then
+					target:GodEnable()
+				else
+					target:GodDisable()
+				end
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " " .. (isGod and "включил" or "выключил") .. " бессмертие игроку " .. target:Nick() .. ".")
+			elseif cmd == "player_tp_to" and target:IsPlayer() then
+				target:SetPos(ply:GetPos())
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " телепортировал игрока " .. target:Nick() .. " к себе.")
+			elseif cmd == "player_tp_me" and target:IsPlayer() then
+				ply:SetPos(target:GetPos())
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " телепортировался к игроку " .. target:Nick() .. ".")
+			elseif cmd == "player_mute" and target:IsPlayer() then
+				local isMuted = not target:GetNWBool("SlenderMuted", false)
+				target:SetNWBool("SlenderMuted", isMuted)
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " " .. (isMuted and "заглушил" or "разглушил") .. " игрока " .. target:Nick() .. " (Голос).")
+			elseif cmd == "player_gag" and target:IsPlayer() then
+				local isGagged = not target:GetNWBool("SlenderGagged", false)
+				target:SetNWBool("SlenderGagged", isGagged)
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " " .. (isGagged and "заблокировал" or "разблокировал") .. " чат игроку " .. target:Nick() .. ".")
+			elseif cmd == "player_kick" and target:IsPlayer() then
+				local reason = net.ReadString()
+				if reason == "" then reason = "Без причины" end
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " кикнул игрока " .. target:Nick() .. " (" .. reason .. ").")
+				target:Kick("Кикнут администратором: " .. reason)
+			elseif cmd == "player_ban" and target:IsPlayer() then
+				local mins = net.ReadInt(32)
+				local reason = net.ReadString()
+				if reason == "" then reason = "Без причины" end
+				local timeStr = mins == 0 and "навсегда" or (mins .. " мин.")
+				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " забанил игрока " .. target:Nick() .. " на " .. timeStr .. " (" .. reason .. ").")
+				target:Ban(mins, reason)
+				target:Kick("Забанен администратором на " .. timeStr .. ". Причина: " .. reason)
 			end
 		end
 	end)
@@ -755,14 +828,25 @@ if CLIENT then
 			end
 		end
 
-		-- Вкладка управления раундом (День 2)
+		-- Вкладка управления раундом (День 2 - Модификация)
 		local roundPanel = vgui.Create("DPanel", sheet)
 		roundPanel.Paint = function(self, w, h)
 			draw.RoundedBox(0, 0, 0, w, h, Color(20, 20, 20, 255))
 		end
 
-		local roundTitle = vgui.Create("DLabel", roundPanel)
-		roundTitle:SetText("Управление текущим раундом")
+		-- Левая колонка: Состояние раунда
+		local leftCol = vgui.Create("DPanel", roundPanel)
+		leftCol:Dock(LEFT)
+		leftCol:SetWidth(375)
+		leftCol:DockMargin(10, 10, 5, 10)
+		leftCol.Paint = function(self, w, h)
+			draw.RoundedBox(0, 0, 0, w, h, Color(15, 15, 15, 255))
+			surface.SetDrawColor(SlenderUI.ColorBorder)
+			surface.DrawOutlinedRect(0, 0, w, h)
+		end
+
+		local roundTitle = vgui.Create("DLabel", leftCol)
+		roundTitle:SetText("Состояние раунда")
 		roundTitle:SetFont("Tahoma_lines23")
 		roundTitle:SetTextColor(SlenderUI.ColorText)
 		roundTitle:Dock(TOP)
@@ -770,13 +854,13 @@ if CLIENT then
 		roundTitle:SizeToContents()
 
 		local function CreateRoundButton(text, cmd)
-			local btn = vgui.Create("DButton", roundPanel)
+			local btn = vgui.Create("DButton", leftCol)
 			btn:SetText(text)
 			btn:SetTextColor(SlenderUI.ColorText)
 			btn:SetFont("Tahoma_lines18")
 			btn:Dock(TOP)
 			btn:DockMargin(15, 5, 15, 5)
-			btn:SetHeight(40)
+			btn:SetHeight(35)
 			btn.Paint = SlenderUI.PaintButton
 			btn.DoClick = function()
 				net.Start("SlenderAdminCommand")
@@ -786,8 +870,124 @@ if CLIENT then
 		end
 
 		CreateRoundButton("Перезапустить раунд", "restart_round")
-		CreateRoundButton("Объявить победу Выживших (Людей)", "force_victory_humans")
+		CreateRoundButton("Объявить победу Людей", "force_victory_humans")
 		CreateRoundButton("Объявить победу Слендермена", "force_victory_slender")
+		CreateRoundButton("Поставить / Снять с паузы", "toggle_pause")
+
+		-- Индикатор времени раунда
+		local timeLabel = vgui.Create("DLabel", leftCol)
+		timeLabel:Dock(TOP)
+		timeLabel:DockMargin(15, 15, 15, 5)
+		timeLabel:SetFont("Tahoma_lines18")
+		timeLabel:SetTextColor(SlenderUI.ColorTextMuted)
+		timeLabel.Think = function(self)
+			local is_paused = GetGlobalBool("slender_round_paused", false)
+			local start_time = GetGlobalFloat("slender_round_start_time", CurTime())
+			local elapsed = CurTime() - start_time
+			local timeStr = string.FormattedTime(elapsed, "%02i:%02i:%02i")
+			self:SetText("Время раунда: " .. timeStr .. (is_paused and " [ПАУЗА]" or ""))
+		end
+
+		-- Правая колонка: Карты и Настройки
+		local rightCol = vgui.Create("DPanel", roundPanel)
+		rightCol:Dock(FILL)
+		rightCol:DockMargin(5, 10, 10, 10)
+		rightCol.Paint = function(self, w, h)
+			draw.RoundedBox(0, 0, 0, w, h, Color(15, 15, 15, 255))
+			surface.SetDrawColor(SlenderUI.ColorBorder)
+			surface.DrawOutlinedRect(0, 0, w, h)
+		end
+
+		local mapTitle = vgui.Create("DLabel", rightCol)
+		mapTitle:SetText("Карты и Настройки")
+		mapTitle:SetFont("Tahoma_lines23")
+		mapTitle:SetTextColor(SlenderUI.ColorText)
+		mapTitle:Dock(TOP)
+		mapTitle:DockMargin(15, 15, 15, 10)
+		mapTitle:SizeToContents()
+
+		-- Выпадающий список карт
+		local mapSelect = vgui.Create("DComboBox", rightCol)
+		mapSelect:Dock(TOP)
+		mapSelect:DockMargin(15, 5, 15, 5)
+		mapSelect:SetHeight(30)
+		mapSelect:SetFont("Tahoma_lines18")
+		mapSelect:SetTextColor(SlenderUI.ColorText)
+		mapSelect.Paint = function(self, w, h)
+			draw.RoundedBox(0, 0, 0, w, h, Color(24, 24, 24, 255))
+			surface.SetDrawColor(SlenderUI.ColorBorder)
+			surface.DrawOutlinedRect(0, 0, w, h)
+		end
+		
+		-- Заполнение списка карт
+		for _, mInfo in ipairs(GAMEMODE.Maps or {}) do
+			mapSelect:AddChoice(mInfo.map)
+		end
+		if #mapSelect.Choices > 0 then
+			mapSelect:ChooseOptionID(1)
+		end
+
+		-- Кнопка смены карты
+		local changeMapBtn = vgui.Create("DButton", rightCol)
+		changeMapBtn:SetText("Сменить карту")
+		changeMapBtn:SetTextColor(SlenderUI.ColorText)
+		changeMapBtn:SetFont("Tahoma_lines18")
+		changeMapBtn:Dock(TOP)
+		changeMapBtn:DockMargin(15, 5, 15, 5)
+		changeMapBtn:SetHeight(35)
+		changeMapBtn.Paint = SlenderUI.PaintButton
+		changeMapBtn.DoClick = function()
+			local selected = mapSelect:GetSelected()
+			if selected then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("change_level")
+					net.WriteString(selected)
+				net.SendToServer()
+			end
+		end
+
+		-- Кнопка RTV
+		local rtvBtn = vgui.Create("DButton", rightCol)
+		rtvBtn:SetText("Запустить RTV Голосование")
+		rtvBtn:SetTextColor(SlenderUI.ColorText)
+		rtvBtn:SetFont("Tahoma_lines18")
+		rtvBtn:Dock(TOP)
+		rtvBtn:DockMargin(15, 5, 15, 5)
+		rtvBtn:SetHeight(35)
+		rtvBtn.Paint = SlenderUI.PaintButton
+		rtvBtn.DoClick = function()
+			net.Start("SlenderAdminCommand")
+				net.WriteString("force_rtv")
+			net.SendToServer()
+		end
+
+		-- Быстрая функция создания чекбоксов
+		local function CreateRoundCheckbox(label, varName)
+			local panel = vgui.Create("DPanel", rightCol)
+			panel:Dock(TOP)
+			panel:DockMargin(15, 5, 15, 5)
+			panel:SetHeight(25)
+			panel.Paint = function(self, w, h) end
+
+			local chk = vgui.Create("DCheckBoxLabel", panel)
+			chk:Dock(FILL)
+			chk:SetText(label)
+			chk:SetFont("Tahoma_lines18")
+			chk:SetTextColor(SlenderUI.ColorText)
+			chk:SetValue(GetGlobalBool(varName, true))
+			
+			chk.OnChange = function(self, val)
+				net.Start("SlenderAdminCommand")
+					net.WriteString("update_balance_bool")
+					net.WriteString(varName)
+					net.WriteBool(val)
+				net.SendToServer()
+			end
+		end
+
+		CreateRoundCheckbox("Разрешить RTV голосование (!rtv)", "slender_rtv_enabled")
+		CreateRoundCheckbox("Версус режим (Игрок-Слендер)", "slender_versusmode")
+		CreateRoundCheckbox("Автопоиск slender_ карт", "slender_includemaps")
 
 		sheet:AddSheet("Раунд", roundPanel, "icon16/time.png")
 
@@ -816,6 +1016,9 @@ if CLIENT then
 		actionTitle:SetContentAlignment(5)
 		actionTitle:SizeToContents()
 
+		local actionScroll = vgui.Create("DScrollPanel", actionPanel)
+		actionScroll:Dock(FILL)
+
 		local playerList = vgui.Create("DListView", playersPanel)
 		playerList:Dock(FILL)
 		playerList:DockMargin(5, 5, 5, 5)
@@ -823,6 +1026,9 @@ if CLIENT then
 		playerList:AddColumn("Никнейм")
 		playerList:AddColumn("Команда")
 		playerList:AddColumn("Здоровье")
+		playerList:AddColumn("Батарея")
+		playerList:AddColumn("Записки")
+		playerList:AddColumn("Пинг")
 
 		playerList.Paint = function(self, w, h)
 			draw.RoundedBox(0, 0, 0, w, h, Color(12, 12, 12, 255))
@@ -837,7 +1043,11 @@ if CLIENT then
 				if p:Team() == TEAM_HUMENS then tName = "Выживший"
 				elseif p:Team() == TEAM_SLENDER then tName = "Слендер" end
 
-				local line = playerList:AddLine(p:Nick(), tName, p:Alive() and p:Health() or "Мертв")
+				local bat = p:Team() == TEAM_HUMENS and p:GetDTInt(1) or "N/A"
+				local pages = p:Team() == TEAM_HUMENS and p:GetPages() or "N/A"
+				local ping = p:Ping()
+
+				local line = playerList:AddLine(p:Nick(), tName, p:Alive() and p:Health() or "Мертв", bat, pages, ping)
 				line.PlayerEntity = p
 
 				for _, col in ipairs(line.Columns) do
@@ -852,7 +1062,7 @@ if CLIENT then
 				end
 			end
 			for _, b in ipairs(ents.FindByClass("slendy")) do
-				local line = playerList:AddLine("Бот Слендер #" .. b:EntIndex(), "Слендер (Бот)", "10000")
+				local line = playerList:AddLine("Бот Слендер #" .. b:EntIndex(), "Слендер (Бот)", "10000", "N/A", "N/A", "BOT")
 				line.PlayerEntity = b
 
 				for _, col in ipairs(line.Columns) do
@@ -873,7 +1083,7 @@ if CLIENT then
 		local selectedPlayer = nil
 
 		local function CreatePlayerActionButton(text, cmd)
-			local btn = vgui.Create("DButton", actionPanel)
+			local btn = vgui.Create("DButton", actionScroll)
 			btn:SetText(text)
 			btn:SetTextColor(SlenderUI.ColorText)
 			btn:SetFont("Tahoma_lines18")
@@ -903,22 +1113,188 @@ if CLIENT then
 				end
 			end
 			table.insert(actionButtons, btn)
+			return btn
 		end
 
 		CreatePlayerActionButton("Убить", "player_kill")
 		CreatePlayerActionButton("Возродить за людей", "player_respawn")
 		CreatePlayerActionButton("Сделать Слендером", "player_slender")
 		CreatePlayerActionButton("Перевести в зрители", "player_spec")
+
+		-- Заморозка
+		local freezeBtn = vgui.Create("DButton", actionScroll)
+		freezeBtn:SetText("Заморозить")
+		freezeBtn:SetTextColor(SlenderUI.ColorText)
+		freezeBtn:SetFont("Tahoma_lines18")
+		freezeBtn:Dock(TOP)
+		freezeBtn:DockMargin(10, 4, 10, 4)
+		freezeBtn:SetHeight(32)
+		freezeBtn:SetEnabled(false)
+		freezeBtn.Paint = actionButtons[1].Paint
+		freezeBtn.Think = function(self)
+			if IsValid(selectedPlayer) and selectedPlayer:IsPlayer() then
+				self:SetText(selectedPlayer:GetNWBool("SlenderFrozen", false) and "Разморозить" or "Заморозить")
+			end
+		end
+		freezeBtn.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_freeze")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, freezeBtn)
+
 		CreatePlayerActionButton("Вылечить", "player_heal")
 		CreatePlayerActionButton("Зарядить батарею", "player_battery")
+
+		-- Бессмертие (Godmode)
+		local godBtn = vgui.Create("DButton", actionScroll)
+		godBtn:SetText("Включить бессмертие")
+		godBtn:SetTextColor(SlenderUI.ColorText)
+		godBtn:SetFont("Tahoma_lines18")
+		godBtn:Dock(TOP)
+		godBtn:DockMargin(10, 4, 10, 4)
+		godBtn:SetHeight(32)
+		godBtn:SetEnabled(false)
+		godBtn.Paint = actionButtons[1].Paint
+		godBtn.Think = function(self)
+			if IsValid(selectedPlayer) and selectedPlayer:IsPlayer() then
+				self:SetText(selectedPlayer:GetNWBool("SlenderGodMode", false) and "Выкл. бессмертие" or "Вкл. бессмертие")
+			end
+		end
+		godBtn.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_godmode")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, godBtn)
+
+		-- Телепортация игрока к админу
+		CreatePlayerActionButton("ТП игрока к себе", "player_tp_to")
+		-- Телепортация админа к игроку
+		CreatePlayerActionButton("ТП к игроку", "player_tp_me")
+
+		-- Глобальный мут голоса
+		local muteBtn = vgui.Create("DButton", actionScroll)
+		muteBtn:SetText("Заглушить (Голос)")
+		muteBtn:SetTextColor(SlenderUI.ColorText)
+		muteBtn:SetFont("Tahoma_lines18")
+		muteBtn:Dock(TOP)
+		muteBtn:DockMargin(10, 4, 10, 4)
+		muteBtn:SetHeight(32)
+		muteBtn:SetEnabled(false)
+		muteBtn.Paint = actionButtons[1].Paint
+		muteBtn.Think = function(self)
+			if IsValid(selectedPlayer) and selectedPlayer:IsPlayer() then
+				self:SetText(selectedPlayer:GetNWBool("SlenderMuted", false) and "Разглушить (Голос)" or "Заглушить (Голос)")
+			end
+		end
+		muteBtn.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_mute")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, muteBtn)
+
+		-- Глобальный гаг чата
+		local gagBtn = vgui.Create("DButton", actionScroll)
+		gagBtn:SetText("Дать гаг (Чат)")
+		gagBtn:SetTextColor(SlenderUI.ColorText)
+		gagBtn:SetFont("Tahoma_lines18")
+		gagBtn:Dock(TOP)
+		gagBtn:DockMargin(10, 4, 10, 4)
+		gagBtn:SetHeight(32)
+		gagBtn:SetEnabled(false)
+		gagBtn.Paint = actionButtons[1].Paint
+		gagBtn.Think = function(self)
+			if IsValid(selectedPlayer) and selectedPlayer:IsPlayer() then
+				self:SetText(selectedPlayer:GetNWBool("SlenderGagged", false) and "Снять гаг (Чат)" or "Дать гаг (Чат)")
+			end
+		end
+		gagBtn.DoClick = function()
+			if IsValid(selectedPlayer) then
+				net.Start("SlenderAdminCommand")
+					net.WriteString("player_gag")
+					net.WriteEntity(selectedPlayer)
+				net.SendToServer()
+				timer.Simple(0.1, UpdatePlayerList)
+			end
+		end
+		table.insert(actionButtons, gagBtn)
+
+		-- Кик игрока
+		local kickBtn = vgui.Create("DButton", actionScroll)
+		kickBtn:SetText("Кикнуть")
+		kickBtn:SetTextColor(SlenderUI.ColorText)
+		kickBtn:SetFont("Tahoma_lines18")
+		kickBtn:Dock(TOP)
+		kickBtn:DockMargin(10, 4, 10, 4)
+		kickBtn:SetHeight(32)
+		kickBtn:SetEnabled(false)
+		kickBtn.Paint = actionButtons[1].Paint
+		kickBtn.DoClick = function()
+			if IsValid(selectedPlayer) then
+				Derma_StringRequest("Кик игрока " .. selectedPlayer:Nick(), "Введите причину кика:", "", function(reason)
+					if not IsValid(selectedPlayer) then return end
+					net.Start("SlenderAdminCommand")
+						net.WriteString("player_kick")
+						net.WriteEntity(selectedPlayer)
+						net.WriteString(reason)
+					net.SendToServer()
+					timer.Simple(0.1, UpdatePlayerList)
+				end)
+			end
+		end
+		table.insert(actionButtons, kickBtn)
+
+		-- Бан игрока
+		local banBtn = vgui.Create("DButton", actionScroll)
+		banBtn:SetText("Забанить")
+		banBtn:SetTextColor(SlenderUI.ColorText)
+		banBtn:SetFont("Tahoma_lines18")
+		banBtn:Dock(TOP)
+		banBtn:DockMargin(10, 4, 10, 4)
+		banBtn:SetHeight(32)
+		banBtn:SetEnabled(false)
+		banBtn.Paint = actionButtons[1].Paint
+		banBtn.DoClick = function()
+			if IsValid(selectedPlayer) then
+				Derma_StringRequest("Бан игрока " .. selectedPlayer:Nick(), "Введите срок бана (в минутах, 0 - навсегда):", "60", function(timeStr)
+					local mins = tonumber(timeStr) or 60
+					Derma_StringRequest("Бан игрока " .. selectedPlayer:Nick(), "Введите причину бана:", "", function(reason)
+						if not IsValid(selectedPlayer) then return end
+						net.Start("SlenderAdminCommand")
+							net.WriteString("player_ban")
+							net.WriteEntity(selectedPlayer)
+							net.WriteInt(mins, 32)
+							net.WriteString(reason)
+						net.SendToServer()
+						timer.Simple(0.1, UpdatePlayerList)
+					end)
+				end)
+			end
+		end
+		table.insert(actionButtons, banBtn)
+
 		CreatePlayerActionButton("Добавить собр. записку (+1)", "player_addpage")
 		CreatePlayerActionButton("Забрать собр. записку (-1)", "player_removepage")
 
-		local spawnBotBtn = vgui.Create("DButton", actionPanel)
-		spawnBotBtn:SetText("Заспавнить бота Слендермена")
+		local spawnBotBtn = vgui.Create("DButton", actionScroll)
+		spawnBotBtn:SetText("Заспавнить бота")
 		spawnBotBtn:SetTextColor(SlenderUI.ColorText)
 		spawnBotBtn:SetFont("Tahoma_lines18")
-		spawnBotBtn:Dock(BOTTOM)
+		spawnBotBtn:Dock(TOP)
 		spawnBotBtn:DockMargin(10, 10, 10, 10)
 		spawnBotBtn:SetHeight(40)
 		spawnBotBtn.Paint = SlenderUI.PaintButton
@@ -1075,7 +1451,6 @@ if CLIENT then
 		CreateCheckboxSetting("Регенерировать рассудок ТОЛЬКО при включенном фонарике", "slender_sanity_regen_light")
 
 		-- Системные переключатели сессии (День 4)
-		CreateCheckboxSetting("Разрешить запуск голосования RTV игроками (!rtv)", "slender_rtv_enabled")
 		CreateCheckboxSetting("Активность AFK-контроля (убийство неактивных через 100 сек.)", "slender_afk_enabled")
 
 		CreateSliderSetting("Восстановление рассудка (здоровья) при поднятии страницы", "slender_page_restore_sanity", 0, 100, 0)

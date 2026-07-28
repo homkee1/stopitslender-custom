@@ -26,15 +26,7 @@ for _, filename in pairs(a) do
 	resource.AddFile("models/slender/"..string.lower(filename))
 end
 
-GM.IncludeAvalaibleMaps = util.tobool( CreateConVar("slender_includemaps", 1, FCVAR_ARCHIVE + FCVAR_NOTIFY, "Should server look up for other 'slender_' maps that are not in the map cycle?"):GetInt() )
-cvars.AddChangeCallback("slender_includemaps", function(cvar, oldvalue, newvalue)
-	GAMEMODE.IncludeAvalaibleMaps = util.tobool( newvalue )
-end)
-
-GM.VersusMode = util.tobool( CreateConVar("slender_versusmode", 1, FCVAR_ARCHIVE + FCVAR_NOTIFY, "Allow players to become slenderman, at the round start. Disable this, if you want to always have bot slenderman."):GetInt() )
-cvars.AddChangeCallback("slender_versusmode", function(cvar, oldvalue, newvalue)
-	GAMEMODE.VersusMode = util.tobool( newvalue )
-end)
+-- Консольные переменные удалены. Настройки полностью перенесены в админ-панель.
 
 -- resource.AddWorkshop( "171728689" ) //I know it's silly, but just in case
 resource.AddWorkshop( "142020889" ) //slender_forest
@@ -166,7 +158,7 @@ end
 //If you want to add maps on fly or if you are one of these lazy server owners. 
 function GM:CheckUnlistedMaps()
 	
-	if !self.IncludeAvalaibleMaps then return end
+	if not GetGlobalBool("slender_includemaps", true) then return end
 	
 	local needed_maps = {}
 	local all_maps = file.Find( "maps/*.bsp", "GAME" ) or {}
@@ -385,6 +377,7 @@ end
 function GM:InitPostEntity()
 	
 	ROUNDTIME = CurTime()
+	SetGlobalFloat("slender_round_start_time", ROUNDTIME)
 	ENDROUND = false
 	
 	game.GetWorld():SetDTInt( 1, 0 )
@@ -393,7 +386,7 @@ function GM:InitPostEntity()
 	
 	self:CreateFlashLight()
 	
-	local check_time = self.VersusMode and 20 or 5
+	local check_time = GetGlobalBool("slender_versusmode", true) and 20 or 5
 	
 	timer.Simple( check_time, function()
 		GAMEMODE:CheckSlenderman()
@@ -454,7 +447,7 @@ function GM:PlayerInitialSpawn( pl )
 	
 		if #player.GetAll() > 1 and #team.GetPlayers(TEAM_SLENDER) <= 0 and #ents.FindByClass("slendy") <=0 then
 					
-			if self.VersusMode and !pl:IsBot() and self.LastSlender ~= pl then
+			if GetGlobalBool("slender_versusmode", true) and !pl:IsBot() and self.LastSlender ~= pl then
 				pl:SetTeam(TEAM_SLENDER)
 				self.LastSlender = pl
 				game.GetWorld():SetDTEntity(2,pl)
@@ -497,6 +490,9 @@ end
 // 115, 117, 125
 
 function GM:PlayerSpawn( pl )
+	if GetGlobalBool("slender_round_paused", false) or pl:GetNWBool("SlenderFrozen", false) then
+		pl:Freeze(true)
+	end
 
 	local name = pl:GetInfo("cl_playermodel")
 	local modelname = player_manager.TranslatePlayerModel(#name == 0 and "models/player/kleiner.mdl" or name)
@@ -697,6 +693,11 @@ end
 
 function GM:PlayerCanHearPlayersVoice( pListener, pTalker )
 	
+	-- Глобальный мут администратора (имеет высший приоритет)
+	if pTalker:GetNWBool("SlenderMuted", false) then
+		return false, false
+	end
+
 	local sv_alltalk = GetConVar( "sv_alltalk" )
 	
 	local alltalk = sv_alltalk:GetInt()
@@ -840,6 +841,12 @@ end
 function GM:PlayerSay(ply, text, team_only)
 	if not IsValid(ply) then return end
 	
+	-- Глобальный гаг чата от администратора
+	if ply:GetNWBool("SlenderGagged", false) then
+		ply:ChatPrint("[Slender] Администратор заблокировал вам доступ к текстовому чату!")
+		return ""
+	end
+
 	if string.lower(string.sub(text,1, 4)) == "!rtv" then
 		ply:UseRTV()
 	end
@@ -860,3 +867,26 @@ function GM:PlayerNoClip( pl, on )
 	return false
 	
 end
+
+-- Хук для полной блокировки нанесения и получения любого урона во время паузы
+hook.Add("EntityTakeDamage", "Slender_Pause_Block_Damage", function(target, dmginfo)
+	if GetGlobalBool("slender_round_paused", false) then
+		dmginfo:ScaleDamage(0)
+		return true
+	end
+end)
+
+-- Хук для заморозки таймера раунда на месте во время паузы
+hook.Add("Think", "Slender_Pause_Timer", function()
+	if GetGlobalBool("slender_round_paused", false) then
+		ROUNDTIME = ROUNDTIME + FrameTime()
+		SetGlobalFloat("slender_round_start_time", ROUNDTIME)
+	end
+end)
+
+-- Хук для предотвращения любого урона бессмертным игрокам (Godmode)
+hook.Add("PlayerShouldTakeDamage", "Slender_Admin_GodMode", function(ply, attacker)
+	if ply:GetNWBool("SlenderGodMode", false) then
+		return false
+	end
+end)

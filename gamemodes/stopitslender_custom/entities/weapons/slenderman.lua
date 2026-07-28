@@ -31,6 +31,7 @@ local util = util
 local ents = ents
 
 function SWEP:Think()
+	if GetGlobalBool("slender_round_paused", false) then return end
 
 	local ct = CurTime()
 	self.StuckDistance = GetGlobalInt("slender_bot_stuck_dist", 60)

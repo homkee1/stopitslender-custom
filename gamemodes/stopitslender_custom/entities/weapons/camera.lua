@@ -89,6 +89,7 @@ SWEP.NextHeal = 0
 SWEP.NextDrain = 0
 SWEP.NextRecharge = 0
 function SWEP:Think()
+	if GetGlobalBool("slender_round_paused", false) then return end
 
 	local ct = CurTime()
 	
