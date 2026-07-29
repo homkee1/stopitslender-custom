@@ -53,6 +53,20 @@ function ENT:Initialize()
 	
 end
 
+-- Автоматическое освобождение администратора при удалении/уничтожении бота
+function ENT:OnRemove()
+	if SERVER then
+		if IsValid(self.Possessor) then
+			local ply = self.Possessor
+			self.Possessor = nil
+			ply:SetNWBool("PossessingBot", false)
+			ply:SetNWEntity("PossessedBot", NULL)
+			ply:SetNWAngle("PossessOrigAng", angle_zero)
+			ply:SetMoveType(ply:Team() == TEAM_SPECTATOR and MOVETYPE_OBSERVER or MOVETYPE_WALK)
+		end
+	end
+end
+
 
 function ENT:Think()
 	if GetGlobalBool("slender_round_paused", false) then
@@ -71,7 +85,7 @@ function ENT:Think()
 		self.AttackDistance = GetGlobalInt("slender_bot_attack_dist", 650)
 		self.DamageDistance = GetGlobalInt("slender_bot_damage_dist", 650)
 
-		-- ПРЯМОЕ УПРАВЛЕНИЕ БОТОМ (Possession)
+		-- ПРЯМОЕ УПРАВЛЕНИЕ БОТОМ (Possession) (Игровой баланс и механика 1 в 1 как у реального Слендера)
 		if IsValid(self.Possessor) then
 			local ply = self.Possessor
 			
@@ -90,24 +104,77 @@ function ENT:Think()
 			if ply:KeyDown(IN_MOVERIGHT) then moveVec = moveVec + right end
 			if ply:KeyDown(IN_MOVELEFT) then moveVec = moveVec - right end
 			
-			if moveVec:LengthSqr() > 0 then
+			-- Реализация баланса скорости передвижения Слендера 1 в 1:
+			-- Если бот в инвизе, скорость 260. Если видим, скорость 114.
+			-- Если Слендера увидел хотя бы один выживший, его скорость падает до 0 (Замораживается)
+			local speed = 260
+			local isCloaked = self:GetNWBool("SlenderCloaked", false)
+			if not isCloaked then
+				speed = 114
+				if self:Seen(nil, -0.5, true) then
+					speed = 0 -- Слендер замирает при взгляде на него
+				end
+			end
+
+			if speed > 0 and moveVec:LengthSqr() > 0 then
 				moveVec:Normalize()
-				-- Движение бота вперед/вбок со скоростью 120 юнитов в секунду
-				self:SetPos(self:GetPos() + moveVec * 120 * FrameTime())
+				self:SetPos(self:GetPos() + moveVec * speed * FrameTime())
 				
 				-- Воспроизведение анимации ходьбы
 				if self:GetSequence() ~= self:LookupSequence("walk_all_moderate") then
 					self:SetSequence(self:LookupSequence("walk_all_moderate"))
 				end
 			else
-				-- Анимация покоя при остановке
+				-- Анимация покоя при остановке или заморозке взгляда
 				if self:GetSequence() ~= self:LookupSequence("idle_subtle") then
 					self:SetSequence(self:LookupSequence("idle_subtle"))
 				end
 			end
 			
-			-- Плавный поворот бота в сторону взгляда администратора
-			self:SetAngles(Angle(0, ply:EyeAngles().y, 0))
+			-- Плавный поворот бота в сторону взгляда администратора (блокируется при полной заморозке взгляда)
+			if speed > 0 or not isCloaked then
+				self:SetAngles(Angle(0, ply:EyeAngles().y, 0))
+			end
+			
+			-- Обработка ЛКМ (Принудительный ТЕЛЕПОРТ за спину выжившему 1 в 1 как у реального Слендера, разблокируется при сборе 4 записок)
+			if ply:KeyDown(IN_ATTACK) then
+				self.NextTeleportCooldown = self.NextTeleportCooldown or 0
+				if self.NextTeleportCooldown < ct then
+					if not self:Seen() and not isCloaked and game.GetWorld():GetDTInt(1) >= 4 then
+						local teleportPos, facingPos = self:CheckTeleportPos()
+						if teleportPos and facingPos then
+							self:SetPos(teleportPos)
+							local dir = (facingPos - self:GetPos()):GetNormal()
+							local ang = dir:Angle()
+							self:SetAngles(Angle(0, ang.y, 0))
+							ply:SetEyeAngles(Angle(0, ang.y, 0)) -- Разворачиваем камеру админа на выжившего
+							self:EmitSound("camera_static/single_big1.wav", 100, 100) -- Проигрываем тяжелые помехи
+							self.NextTeleportCooldown = ct + 10 -- Перезарядка ТП 10 секунд
+						end
+					end
+				end
+			end
+
+			-- Обработка ПКМ (Переключение скрытности бота с оригинальным звуком npc/fast_zombie/wake1.wav 1 в 1 как у реального Слендера)
+			if ply:KeyDown(IN_ATTACK2) then
+				self.NextPossessInvis = self.NextPossessInvis or 0
+				if self.NextPossessInvis < ct then
+					if not self:Seen() then
+						local nextInvis = not isCloaked
+						self:SetNWBool("SlenderCloaked", nextInvis)
+						self:SetNoDraw(nextInvis)
+						self:DrawShadow(not nextInvis)
+						self:EmitSound("npc/fast_zombie/wake1.wav", 35, 120) -- Оригинальный не зацикливающийся звук перехода
+						self.NextPossessInvis = ct + 0.8
+					end
+				end
+			end
+
+			self.NextAttack = self.NextAttack or ct + 0.5 -- Исправлена опечатка двоеточия на точку
+			if self.NextAttack < ct then
+				self:Attack() -- Пассивно наносим урон глазами (Слендер-видение)
+				self.NextAttack = ct + 0.1
+			end
 
 			self:NextThink(ct)
 			return true
@@ -319,6 +386,45 @@ function ENT:Teleport()
 
 end
 
+end
+
+function ENT:Seen(newpos, newdot, checkvisibility)
+	local clear = true
+	local cur = self:GetPos()
+
+	for k, v in ipairs(team.GetPlayers(TEAM_HUMENS)) do
+		if IsValid(v) and v:Alive() and (v:GetPos():Distance(cur) <= self.AttackDistance and v:SyncAngles():Forward():Dot((v:GetPos()-cur):GetNormal()) < (newdot or -0.3) and TrueVisible(v:EyePos(), (newpos and newpos + vector_up*64) or self:NearestPoint(v:EyePos()), v) or self:GetNWBool("SlenderCloaked", false) and v:GetPos():Distance(cur) < self.StuckDistance) then
+			clear = false
+			break
+		end
+	end
+	return not clear
+end
+
+function ENT:CheckTeleportPos()
+	if self:Seen() then return end
+	if self:GetNWBool("SlenderCloaked", false) then return end
+	
+	local target = self:GetClosest()
+	
+	if IsValid(target) then
+		-- Локальное объявление таблицы tracebox для устранения ошибок компиляции
+		local tracebox = {
+			start = target:GetPos() + vector_up * 2,
+			endpos = target:GetPos() + vector_up * 2 + target:SyncAngles():Forward() * 900,
+			mins = Vector(-20, -20, 0),
+			maxs = Vector(20, 20, 80),
+			filter = target,
+			mask = MASK_SHOT
+		}
+		
+		local tr = util.TraceHull( tracebox )
+		
+		if not tr.Hit and not self:Seen( tracebox.endpos ) and TrueVisible(target:EyePos(), tracebox.endpos + vector_up * 64, target) then
+			return tracebox.endpos, tracebox.start
+		end
+	end
+	return 
 end
 
 function ENT:GetClosest()

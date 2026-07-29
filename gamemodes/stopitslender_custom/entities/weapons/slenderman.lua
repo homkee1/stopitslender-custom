@@ -247,13 +247,7 @@ end
 
 function SWEP:DrawHUD()
 	//if GAMEMODE:IsNight() then
-		local light = Entity(0):GetDTEntity(3)
 		
-		if light and IsValid(light) then
-			light:SetOwner(LocalPlayer())
-			light:SetPos(EyePos())
-			light:SetAngles(EyeAngles())
-		end
 	//else
 	/*	local dlight = DynamicLight( self:EntIndex() )
 		if ( dlight ) then

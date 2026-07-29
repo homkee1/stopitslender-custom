@@ -267,13 +267,7 @@ function GM:HUDPaint()
 	if MySelf:GetNWBool("PossessingBot", false) then
 		local bot = MySelf:GetNWEntity("PossessedBot")
 		if IsValid(bot) then
-			-- 1. Синхронизация красного админского прожектора из глаз
-			local light = Entity(0):GetDTEntity(3)
-			if light and IsValid(light) then
-				light:SetOwner(MySelf)
-				light:SetPos(EyePos())
-				light:SetAngles(EyeAngles())
-			end
+			-- 1. Прожектор Слендера переведен на индивидуальную клиентскую подсветку
 
 			-- 2. Отрисовка записок над головами живых людей
 			for _, v in ipairs(team.GetPlayers(TEAM_HUMENS)) do
@@ -393,8 +387,9 @@ function GM:HUDPaint()
 				dlight.b = 255
 				local isFree = MySelf:GetNWBool("SlenderFreecam", false)
 				dlight.Brightness = isFree and 5 or 3
-				dlight.Size = isFree and 850 or 370
-				dlight.Decay = dlight.Size * 5
+				local size = isFree and 850 or 370
+				dlight.Size = size
+				dlight.Decay = size * 5 -- Записываем значение напрямую из локальной переменной
 				dlight.DieTime = CurTime() + 1
 				dlight.Style = 0
 			end
@@ -965,6 +960,46 @@ end
 
 local drawfog = false
 local drawnight = false
+
+-- Индивидуальная клиентская красная подсветка Слендера (Видима ТОЛЬКО Слендерам и вселившимся админам)
+local SlenderLamp = nil
+hook.Add("PreDrawOpaqueRenderables", "Slender_Local_Spotlight", function()
+	local ply = LocalPlayer()
+	if not IsValid(ply) or not ply:IsPlayer() then return end
+
+	local isSlender = ply:Team() == TEAM_SLENDER or ply:GetNWBool("PossessingBot", false)
+
+	if isSlender then
+		if not IsValid(SlenderLamp) then
+			SlenderLamp = ProjectedTexture()
+			if IsValid(SlenderLamp) then
+				SlenderLamp:SetTexture("effects/flashlight001")
+				SlenderLamp:SetFOV(90)
+				SlenderLamp:SetFarZ(2048)
+				SlenderLamp:SetNearZ(8)
+				SlenderLamp:SetColor(Color(255, 30, 30, 255))
+				SlenderLamp:SetBrightness(1.2) -- Устанавливаем комфортную и атмосферную яркость
+				SlenderLamp:SetEnableShadows(false)
+			end
+		end
+
+		if IsValid(SlenderLamp) then
+			local bot = ply:GetNWEntity("PossessedBot")
+			-- Если админ во вселении, привязываем свет к голове бота, иначе - к глазам игрока
+			local pos = (ply:GetNWBool("PossessingBot", false) and IsValid(bot)) and (bot:GetPos() + Vector(0, 0, 72)) or EyePos()
+			local ang = EyeAngles()
+
+			SlenderLamp:SetPos(pos + ang:Forward() * 10)
+			SlenderLamp:SetAngles(ang)
+			SlenderLamp:Update()
+		end
+	else
+		if IsValid(SlenderLamp) then
+			SlenderLamp:Remove()
+			SlenderLamp = nil
+		end
+	end
+end)
 
 hook.Add("Think","SlenderFog",function()
 	

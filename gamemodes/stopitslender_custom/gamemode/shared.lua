@@ -223,36 +223,17 @@ end)
 -- Хук управления ботом и полной блокировки прыжков/оружия физического тела админа
 hook.Add("StartCommand", "Slender_Possess_Controller", function(ply, ucmd)
 	if ply:GetNWBool("PossessingBot", false) then
-		if SERVER then
-			local bot = ply:GetNWEntity("PossessedBot")
-			if IsValid(bot) then
-				-- Обработка ЛКМ (Принудительная атака бота с задержкой в 0.6 сек.)
-				if ucmd:KeyDown(IN_ATTACK) then
-					bot.NextPossessAttack = bot.NextPossessAttack or 0
-					if bot.NextPossessAttack < CurTime() then
-						bot:Attack()
-						bot.NextPossessAttack = CurTime() + 0.6
-					end
-				end
-				-- Обработка ПКМ (Переключение скрытности бота с задержкой в 0.5 сек.)
-				if ucmd:KeyDown(IN_ATTACK2) then
-					bot.NextPossessInvis = bot.NextPossessInvis or 0
-					if bot.NextPossessInvis < CurTime() then
-						local isCloaked = not bot:GetNWBool("SlenderCloaked", false)
-						bot:SetNWBool("SlenderCloaked", isCloaked)
-						bot:SetNoDraw(isCloaked)
-						bot:DrawShadow(not isCloaked)
-						bot.NextPossessInvis = CurTime() + 0.5
-					end
-				end
-			end
-		end
-
-		-- Вырезаем прыжки и огонь оружия у тела админа на клиенте и сервере
 		local buttons = ucmd:GetButtons()
+
+		-- Оставляем только блокировку прыжков физического тела, атаки блокируются через camera.lua
 		buttons = bit.band(buttons, bit.bnot(IN_JUMP))
-		buttons = bit.band(buttons, bit.bnot(IN_ATTACK))
-		buttons = bit.band(buttons, bit.bnot(IN_ATTACK2))
 		ucmd:SetButtons(buttons)
+		
+		-- Полностью обнуляем аналоговые силы перемещения у физического тела админа,
+		-- убирая любое микро-скольжение и дрейф (клиентское prediction-смещение) в сторону движения бота.
+		-- При этом кнопки WASD в ucmd:GetButtons() остаются целыми, чтобы бот мог их считывать.
+		ucmd:SetForwardMove(0)
+		ucmd:SetSideMove(0)
+		ucmd:SetUpMove(0)
 	end
 end)

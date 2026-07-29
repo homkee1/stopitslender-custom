@@ -364,6 +364,11 @@ function GM:RestartRound()
 	self:InitPostEntity()
 	
 	for k, v in pairs(player.GetAll()) do
+		-- Принудительный сброс параметров вселения у всех игроков при перезапуске раунда
+		v:SetNWBool("PossessingBot", false)
+		v:SetNWEntity("PossessedBot", NULL)
+		v:SetNWAngle("PossessOrigAng", angle_zero)
+
 		v:SetTeam(TEAM_SPECTATOR)
 		self:PlayerInitialSpawn(v)
 		v:Spawn()
@@ -674,22 +679,7 @@ function GM:CreateFlashLight()
 
 		game.GetWorld():SetDTEntity(1,ent)
 	end
-	//slender
-	local ent = ents.Create("env_projectedtexture")
-	if ent:IsValid() then
-		ent:SetLocalPos(Vector(16000, 16000, 16000))
-		ent:SetKeyValue("enableshadows", 0)
-		ent:SetKeyValue("farz", 2048)//1024
-		ent:SetKeyValue("nearz", 8)
-		ent:SetKeyValue("lightfov", 90)//60
-		ent:SetKeyValue("lightcolor", "255 55 55 255")
-		ent:Spawn()
-		ent:Input("SpotlightTexture", NULL, NULL, "effects/flashlight001")
-
-		game.GetWorld():SetDTEntity(3,ent)
 	end
-	
-end
 
 function GM:PlayerCanHearPlayersVoice( pListener, pTalker )
 	
@@ -768,6 +758,21 @@ function GM:DoPlayerDeath( ply, attacker, dmginfo )
 end
 
 function GM:PlayerDisconnected(pl)
+
+	-- Полный сброс параметров вселенного бота к дефолту, если управляющий им администратор вышел с сервера
+	if pl:GetNWBool("PossessingBot", false) then
+		for _, b in ipairs(ents.FindByClass("slendy")) do
+			if b.Possessor == pl then
+				b.Possessor = nil
+				b:SetNWBool("SlenderAIFrozen", false)
+				b:SetNWBool("SlenderCloaked", false)
+				b:SetNoDraw(false)
+				b:DrawShadow(true)
+				b.TargetLock = nil
+				break
+			end
+		end
+	end
 
 	if pl:Team() == TEAM_SLENDER then
 		timer.Simple(3,function()
@@ -901,18 +906,44 @@ hook.Add("PlayerSwitchWeapon", "Slender_Cloak_Weapon", function(ply, oldWep, new
 end)
 
 -- Хук для выхода из режима прямого управления ботом по клавише перезарядки (R)
-hook.Add("KeyPress", "Slender_Possess_Exit", function(ply, key)
-	if ply:GetNWBool("PossessingBot", false) and key == IN_RELOAD then
-		for _, b in ipairs(ents.FindByClass("slendy")) do
-			if b.Possessor == ply then
-				b.Possessor = nil
-				b:SetNWBool("SlenderAIFrozen", false)
-				ply:SetNWBool("PossessingBot", false)
-				ply:SetNWEntity("PossessedBot", NULL)
-				ply:SetNWAngle("PossessOrigAng", angle_zero)
-				PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " вышел из режима управления ботом по клавише [R].")
-				break
-			end
-		end
-	end
-end)
+        hook.Add("KeyPress", "Slender_Possess_Exit", function(ply, key)
+            if ply:GetNWBool("PossessingBot", false) and key == IN_RELOAD then
+                for _, b in ipairs(ents.FindByClass("slendy")) do
+                    if b.Possessor == ply then
+                        -- Полный сброс параметров бота к дефолту при выходе администратора по клавише [R]
+                        b.Possessor = nil
+                        b:SetNWBool("SlenderAIFrozen", false)
+                        b:SetNWBool("SlenderCloaked", false)
+                        b:SetNoDraw(false)
+                        b:DrawShadow(true)
+                        b.TargetLock = nil
+                        
+                        ply:SetNWBool("PossessingBot", false)
+                        ply:SetNWEntity("PossessedBot", NULL)
+                        ply:SetNWAngle("PossessOrigAng", angle_zero)
+                        PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " вышел из режима управления ботом по клавише [R].")
+                        break
+                    end
+                end
+            end
+        end)
+
+        -- Хук для автоматического выхода из режима вселения, если управляющий админ погибает
+        hook.Add("PlayerDeath", "Slender_Possess_Death", function(ply)
+            if ply:GetNWBool("PossessingBot", false) then
+                for _, b in ipairs(ents.FindByClass("slendy")) do
+                    if b.Possessor == ply then
+                        b.Possessor = nil
+                        b:SetNWBool("SlenderAIFrozen", false)
+                        b:SetNWBool("SlenderCloaked", false)
+                        b:SetNoDraw(false)
+                        b:DrawShadow(true)
+                        b.TargetLock = nil
+                        break
+                    end
+                end
+                ply:SetNWBool("PossessingBot", false)
+                ply:SetNWEntity("PossessedBot", NULL)
+                ply:SetNWAngle("PossessOrigAng", angle_zero)
+            end
+        end)

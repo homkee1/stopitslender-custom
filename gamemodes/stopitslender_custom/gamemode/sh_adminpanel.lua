@@ -586,8 +586,14 @@ if SERVER then
 				ply:ChatPrint("[Slender] Вы наблюдаете за ботом Слендерменом. Нажмите ЛКМ/Пробел для выхода.")
 			elseif cmd == "player_bot_possess" and target:GetClass() == "slendy" then
 					if target.Possessor == ply then
+						-- Полный сброс параметров бота к дефолту при выходе администратора из режима вселения
 						target.Possessor = nil
 						target:SetNWBool("SlenderAIFrozen", false)
+						target:SetNWBool("SlenderCloaked", false)
+						target:SetNoDraw(false)
+						target:DrawShadow(true)
+						target.TargetLock = nil
+						
 						ply:SetNWBool("PossessingBot", false)
 						ply:SetNWEntity("PossessedBot", NULL)
 						ply:SetNWAngle("PossessOrigAng", angle_zero)
