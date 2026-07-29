@@ -396,7 +396,7 @@ if SERVER then
 			ent:Spawn()
 			ent:Activate()
 			PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " заспавнил бота Слендермена.")
-		elseif cmd == "player_kill" or cmd == "player_respawn" or cmd == "player_slender" or cmd == "player_spec" or cmd == "player_heal" or cmd == "player_battery" or cmd == "player_addpage" or cmd == "player_removepage" or cmd == "player_freeze" or cmd == "player_godmode" or cmd == "player_tp_to" or cmd == "player_tp_me" or cmd == "player_mute" or cmd == "player_gag" or cmd == "player_kick" or cmd == "player_ban" or cmd == "player_freecam" or cmd == "player_toggle_cloak" or cmd == "player_bot_tp_crosshair" or cmd == "player_bot_freeze" or cmd == "player_bot_target_lock" or cmd == "player_bot_spectate" or cmd == "player_bot_possess" then
+		elseif cmd == "player_kill" or cmd == "player_respawn" or cmd == "player_slender" or cmd == "player_spec" or cmd == "player_heal" or cmd == "player_battery" or cmd == "player_addpage" or cmd == "player_removepage" or cmd == "player_freeze" or cmd == "player_godmode" or cmd == "player_tp_to" or cmd == "player_tp_me" or cmd == "player_mute" or cmd == "player_gag" or cmd == "player_kick" or cmd == "player_ban" or cmd == "player_freecam" or cmd == "player_toggle_cloak" or cmd == "player_bot_tp_crosshair" or cmd == "player_bot_freeze" or cmd == "player_bot_target_lock" or cmd == "player_bot_possess" then
 			local target = net.ReadEntity()
 			if not IsValid(target) or (not target:IsPlayer() and target:GetClass() ~= "slendy") then return end
 
@@ -580,10 +580,6 @@ if SERVER then
 					target.TargetLock = nil
 					PrintMessage(HUD_PRINTTALK, "[Slender] Администратор " .. ply:Nick() .. " сбросил фокус цели у бота Слендермена.")
 				end
-			elseif cmd == "player_bot_spectate" and target:GetClass() == "slendy" then
-				ply:Spectate(OBS_MODE_CHASE)
-				ply:SpectateEntity(target)
-				ply:ChatPrint("[Slender] Вы наблюдаете за ботом Слендерменом. Нажмите ЛКМ/Пробел для выхода.")
 			elseif cmd == "player_bot_possess" and target:GetClass() == "slendy" then
 					if target.Possessor == ply then
 						-- Полный сброс параметров бота к дефолту при выходе администратора из режима вселения
@@ -1557,20 +1553,6 @@ if CLIENT then
 		end
 		table.insert(actionButtons, btnBotTarget)
 
-		local btnBotSpec = vgui.Create("DButton", actionScroll)
-		btnBotSpec:SetText("Наблюдать за ботом")
-		StyleActionButton(btnBotSpec)
-		btnBotSpec.DoClick = function()
-			if IsValid(selectedPlayer) then
-				net.Start("SlenderAdminCommand")
-					net.WriteString("player_bot_spectate")
-					net.WriteEntity(selectedPlayer)
-				net.SendToServer()
-				SlenderUI.Frame:Close() -- Сворачиваем панель для перехода в режим слежения
-			end
-		end
-		table.insert(actionButtons, btnBotSpec)
-
 		local btnBotPossess = vgui.Create("DButton", actionScroll)
 		btnBotPossess:SetText("Прямое управление")
 		StyleActionButton(btnBotPossess)
@@ -1636,9 +1618,6 @@ if CLIENT then
 
 				btnBotTarget:SetVisible(true)
 				btnBotTarget:SetEnabled(true)
-
-				btnBotSpec:SetVisible(true)
-				btnBotSpec:SetEnabled(true)
 
 				btnBotPossess:SetVisible(true)
 				btnBotPossess:SetEnabled(true)
